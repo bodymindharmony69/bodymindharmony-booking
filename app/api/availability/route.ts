@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabaseAdmin";
-
+import { supabaseAdmin } from '../../../lib/supabaseAdmin'
 export async function GET() {
   const { data, error } = await supabaseAdmin
     .from("blocked_dates")
