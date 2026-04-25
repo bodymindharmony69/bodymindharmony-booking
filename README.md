@@ -30,15 +30,24 @@ If you created an older table from an earlier README (columns like `selected_dat
 
 ## Vercel environment variables
 
-Add these in Vercel Project Settings > Environment Variables:
+Add these in Vercel Project Settings > Environment Variables (or use the Supabase integration, which supplies Postgres URLs):
 
 ```text
-NEXT_PUBLIC_ADMIN_PASSWORD=your-secret-admin-password
-NEXT_PUBLIC_SUPABASE_URL=your-supabase-url
-SUPABASE_SERVICE_ROLE_KEY=your-supabase-service-role-key
-RESEND_API_KEY=optional-resend-api-key
-BOOKING_EMAIL=your-email@example.com
-FROM_EMAIL=BodyMindHarmony <onboarding@resend.dev>
+ADMIN_SECRET=your-admin-password
+NEXT_PUBLIC_SUPABASE_URL=https://YOUR-PROJECT.supabase.co
+SUPABASE_URL=https://YOUR-PROJECT.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=or use SUPABASE_SECRET_KEY from the dashboard
+POSTGRES_URL and POSTGRES_URL_NON_POOLING (from Vercel Supabase integration — required for booking + admin DB routes)
+RESEND_API_KEY=optional
+BOOKING_EMAIL=optional
+FROM_EMAIL=optional
+```
+
+To copy `SUPABASE_URL` into `NEXT_PUBLIC_SUPABASE_URL` on Vercel after pulling env locally:
+
+```bash
+npx vercel env pull .env.vercel.production --environment production --yes
+node scripts/sync-next-public-supabase-url.mjs
 ```
 
 ## How admin works

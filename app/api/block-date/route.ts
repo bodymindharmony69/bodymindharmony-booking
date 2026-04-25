@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabaseAdmin } from "../../../lib/supabaseAdmin";
 import { requireAdminSecret } from "../../../lib/adminRequest";
 import { isValidCalendarDateYMD } from "../../../lib/bookingRules";
+import { toggleBlockedDateYmd } from "../../../lib/blockedDatesPg";
+
+export const runtime = "nodejs";
 
 export async function POST(request: NextRequest) {
   const denied = requireAdminSecret(request);
@@ -14,24 +16,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "date is required (YYYY-MM-DD)" }, { status: 400 });
   }
 
-  const { data: existing } = await supabaseAdmin
-    .from("blocked_dates")
-    .select("date")
-    .eq("date", date)
-    .maybeSingle();
-
-  if (existing) {
-    const { error } = await supabaseAdmin.from("blocked_dates").delete().eq("date", date);
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-    return NextResponse.json({ date, blocked: false });
-  }
-
-  const { error } = await supabaseAdmin.from("blocked_dates").insert({ date });
+  const { blocked, error } = await toggleBlockedDateYmd(date);
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error }, { status: 500 });
   }
 
-  return NextResponse.json({ date, blocked: true });
+  return NextResponse.json({ date, blocked });
 }

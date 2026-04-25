@@ -31,6 +31,8 @@ export default function AdminPage() {
     }[]
   >([]);
   const [bookingBusy, setBookingBusy] = useState<string | null>(null);
+  const [blockedLoadError, setBlockedLoadError] = useState("");
+  const [bookingsLoadError, setBookingsLoadError] = useState("");
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -43,18 +45,56 @@ export default function AdminPage() {
   }, []);
 
   const refresh = useCallback(() => {
+    setBlockedLoadError("");
     fetch("/api/get-blocked")
-      .then((res) => (res.ok ? res.json() : Promise.resolve({})))
-      .then((data) => setBlockedDates(Array.isArray(data.blockedDates) ? data.blockedDates : []))
-      .catch(() => setBlockedDates([]));
+      .then(async (res) => {
+        if (!res.ok) {
+          const j = await res.json().catch(() => ({}));
+          setBlockedLoadError(
+            typeof j.error === "string" ? j.error : "Could not load blocked dates.",
+          );
+          setBlockedDates([]);
+          return null;
+        }
+        return res.json();
+      })
+      .then((data) => {
+        if (data) setBlockedDates(Array.isArray(data.blockedDates) ? data.blockedDates : []);
+      })
+      .catch(() => {
+        setBlockedLoadError("Could not load blocked dates.");
+        setBlockedDates([]);
+      });
   }, []);
 
   const loadBookings = useCallback(() => {
     if (!adminSecret) return;
+    setBookingsLoadError("");
     fetch("/api/admin/bookings/list", { headers: { "x-admin-secret": adminSecret } })
-      .then((res) => (res.ok ? res.json() : Promise.resolve({})))
-      .then((data) => (Array.isArray(data.bookings) ? setBookings(data.bookings) : setBookings([])))
-      .catch(() => setBookings([]));
+      .then(async (res) => {
+        if (!res.ok) {
+          if (res.status === 401) {
+            sessionStorage.removeItem(SESSION_OK);
+            sessionStorage.removeItem(SESSION_SECRET);
+            setUnlocked(false);
+            setAdminSecret("");
+          }
+          const j = await res.json().catch(() => ({}));
+          setBookingsLoadError(
+            typeof j.error === "string" ? j.error : `Could not load bookings (${res.status}).`,
+          );
+          setBookings([]);
+          return null;
+        }
+        return res.json();
+      })
+      .then((data) => {
+        if (data && Array.isArray(data.bookings)) setBookings(data.bookings);
+      })
+      .catch(() => {
+        setBookingsLoadError("Could not load bookings.");
+        setBookings([]);
+      });
   }, [adminSecret]);
 
   useEffect(() => {
@@ -188,6 +228,7 @@ export default function AdminPage() {
       <div className="admin-card">
         <h1>Block dates</h1>
         <p className="note">Next 30 days · green = available · red = blocked · click to toggle</p>
+        {blockedLoadError ? <p className="admin-login-error">{blockedLoadError}</p> : null}
         <div className="admin-grid">
           {days.map((d) => {
             const dateStr = toYMD(d);
@@ -215,10 +256,11 @@ export default function AdminPage() {
           Accept blocks that date and marks the request accepted. A Google Calendar event is added only when Google
           env vars are set on the server; otherwise accept still works.
         </p>
+        {bookingsLoadError ? <p className="admin-login-error">{bookingsLoadError}</p> : null}
         <div className="admin-bookings">
-          {bookings.filter((b) => b.status === "pending").length === 0 ? (
+          {!bookingsLoadError && bookings.filter((b) => b.status === "pending").length === 0 ? (
             <p className="note">No pending requests.</p>
-          ) : (
+          ) : bookingsLoadError ? null : (
             <ul className="admin-booking-list">
               {bookings
                 .filter((b) => b.status === "pending")
