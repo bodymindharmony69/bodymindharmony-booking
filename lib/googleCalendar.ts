@@ -1,14 +1,5 @@
 import { google } from "googleapis";
 
-export function isGoogleCalendarConfigured(): boolean {
-  return Boolean(
-    process.env.GOOGLE_CLIENT_ID?.trim() &&
-      process.env.GOOGLE_CLIENT_SECRET?.trim() &&
-      process.env.GOOGLE_REDIRECT_URI?.trim() &&
-      process.env.GOOGLE_REFRESH_TOKEN?.trim(),
-  );
-}
-
 export type BookingForCalendar = {
   client_name: string;
   client_phone: string | null;
@@ -18,6 +9,19 @@ export type BookingForCalendar = {
   booking_date: string;
   booking_time: string;
 };
+
+export function listMissingGoogleCalendarEnv(): string[] {
+  const missing: string[] = [];
+  if (!process.env.GOOGLE_CLIENT_ID?.trim()) missing.push("GOOGLE_CLIENT_ID");
+  if (!process.env.GOOGLE_CLIENT_SECRET?.trim()) missing.push("GOOGLE_CLIENT_SECRET");
+  if (!process.env.GOOGLE_REDIRECT_URI?.trim()) missing.push("GOOGLE_REDIRECT_URI");
+  if (!process.env.GOOGLE_REFRESH_TOKEN?.trim()) missing.push("GOOGLE_REFRESH_TOKEN");
+  return missing;
+}
+
+export function isGoogleCalendarConfigured(): boolean {
+  return listMissingGoogleCalendarEnv().length === 0;
+}
 
 function pad2(n: number): string {
   return String(n).padStart(2, "0");
@@ -55,6 +59,7 @@ function endDateTime(dateStr: string, timeStr: string): string {
 
 function buildDescription(b: BookingForCalendar): string {
   const lines = [
+    `Name: ${b.client_name}`,
     `Phone: ${b.client_phone ?? ""}`,
     `Email: ${b.client_email ?? ""}`,
     `Address: ${b.address ?? ""}`,
@@ -65,13 +70,15 @@ function buildDescription(b: BookingForCalendar): string {
 }
 
 export async function createCalendarEvent(booking: BookingForCalendar): Promise<void> {
-  const clientId = process.env.GOOGLE_CLIENT_ID?.trim();
-  const clientSecret = process.env.GOOGLE_CLIENT_SECRET?.trim();
-  const redirectUri = process.env.GOOGLE_REDIRECT_URI?.trim();
-  const refreshToken = process.env.GOOGLE_REFRESH_TOKEN?.trim();
-  if (!clientId || !clientSecret || !redirectUri || !refreshToken) {
-    throw new Error("Missing Google Calendar OAuth environment variables.");
+  const missing = listMissingGoogleCalendarEnv();
+  if (missing.length > 0) {
+    throw new Error(`Missing Google Calendar environment variables: ${missing.join(", ")}`);
   }
+
+  const clientId = process.env.GOOGLE_CLIENT_ID!.trim();
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET!.trim();
+  const redirectUri = process.env.GOOGLE_REDIRECT_URI!.trim();
+  const refreshToken = process.env.GOOGLE_REFRESH_TOKEN!.trim();
 
   const oauth2Client = new google.auth.OAuth2(clientId, clientSecret, redirectUri);
   oauth2Client.setCredentials({ refresh_token: refreshToken });
@@ -83,7 +90,7 @@ export async function createCalendarEvent(booking: BookingForCalendar): Promise<
   await calendar.events.insert({
     calendarId: "primary",
     requestBody: {
-      summary: `BodyMindHarmony massage - ${booking.client_name}`,
+      summary: `BodyMindHarmony Massage - ${booking.client_name}`,
       description: buildDescription(booking),
       location: booking.address ?? "",
       start: { dateTime: start, timeZone: "Europe/London" },

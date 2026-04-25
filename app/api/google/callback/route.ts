@@ -32,9 +32,8 @@ export async function GET(request: NextRequest) {
 </head>
 <body>
   <h1>Refresh token</h1>
-  <p class="warn"><strong>Copy this refresh token into Vercel as GOOGLE_REFRESH_TOKEN. Do not share it.</strong></p>
+  <p class="warn"><strong>Copy this into Vercel as GOOGLE_REFRESH_TOKEN. Do not share it.</strong></p>
   <pre>${escapeHtml(refresh)}</pre>
-  <p>You can remove this callback route from the project after setup.</p>
 </body>
 </html>`;
 

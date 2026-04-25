@@ -77,6 +77,10 @@ export default function BookingPage() {
             <h1>Book Your Experience</h1>
             <p className="note">
               Choose your preferred date and time. Your request will be checked personally before confirmation.{" "}
+              <a href="/book" style={{ color: "#888" }}>
+                Simple form
+              </a>
+              {" · "}
               <a href="/admin" style={{ color: "#888" }}>
                 Admin
               </a>
