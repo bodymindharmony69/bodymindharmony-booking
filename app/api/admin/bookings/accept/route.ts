@@ -39,23 +39,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Booking is not pending" }, { status: 409 });
   }
 
-  if (isGoogleCalendarConfigured()) {
-    try {
-      await createCalendarEvent({
-        client_name: row.client_name,
-        client_phone: row.client_phone,
-        client_email: row.client_email,
-        address: row.address,
-        message: row.message,
-        booking_date: row.booking_date,
-        booking_time: row.booking_time,
-      });
-    } catch (e) {
-      console.error("Google Calendar (accept booking):", e);
-      // Still accept booking in DB when Calendar fails (misconfig / quota / etc.)
-    }
-  }
-
   const dateStr =
     typeof row.booking_date === "string"
       ? row.booking_date
@@ -63,14 +46,7 @@ export async function POST(request: NextRequest) {
         ? row.booking_date.toISOString().slice(0, 10)
         : String(row.booking_date).slice(0, 10);
 
-  const { error: blockErr } = await supabaseAdmin
-    .from("blocked_dates")
-    .upsert({ date: dateStr }, { onConflict: "date", ignoreDuplicates: true });
-
-  if (blockErr) {
-    return NextResponse.json({ error: blockErr.message }, { status: 500 });
-  }
-
+  /** Claim the row first so we never create a Calendar event for a booking we did not accept. */
   const { data: updated, error: updErr } = await supabaseAdmin
     .from("booking_requests")
     .update({ status: "accepted" })
@@ -84,6 +60,36 @@ export async function POST(request: NextRequest) {
   }
   if (!updated) {
     return NextResponse.json({ error: "Booking is not pending" }, { status: 409 });
+  }
+
+  const { error: blockErr } = await supabaseAdmin
+    .from("blocked_dates")
+    .upsert({ date: dateStr }, { onConflict: "date", ignoreDuplicates: true });
+
+  if (blockErr) {
+    await supabaseAdmin
+      .from("booking_requests")
+      .update({ status: "pending" })
+      .eq("id", id)
+      .eq("status", "accepted");
+    return NextResponse.json({ error: blockErr.message }, { status: 500 });
+  }
+
+  if (isGoogleCalendarConfigured()) {
+    try {
+      await createCalendarEvent({
+        client_name: row.client_name,
+        client_phone: row.client_phone,
+        client_email: row.client_email,
+        address: row.address,
+        message: row.message,
+        booking_date: dateStr,
+        booking_time:
+          typeof row.booking_time === "string" ? row.booking_time : String(row.booking_time ?? ""),
+      });
+    } catch (e) {
+      console.error("Google Calendar (accept booking):", e);
+    }
   }
 
   return NextResponse.json({ success: true });

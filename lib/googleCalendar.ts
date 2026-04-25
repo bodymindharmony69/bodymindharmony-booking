@@ -28,6 +28,9 @@ function startDateTime(dateStr: string, timeStr: string): string {
   const [hh, mmRaw] = timeStr.trim().split(":");
   const hhNum = parseInt(hh, 10);
   const mmNum = parseInt(mmRaw ?? "0", 10) || 0;
+  if (!Number.isFinite(hhNum) || !Number.isFinite(mmNum) || hhNum < 0 || hhNum > 23 || mmNum < 0 || mmNum > 59) {
+    throw new Error(`Invalid booking time: ${timeStr}`);
+  }
   return `${dateStr}T${pad2(hhNum)}:${pad2(mmNum)}:00`;
 }
 
@@ -35,7 +38,12 @@ function startDateTime(dateStr: string, timeStr: string): string {
 function endDateTime(dateStr: string, timeStr: string): string {
   const [y, m, d] = dateStr.split("-").map((x) => parseInt(x, 10));
   const [hh, mmRaw] = timeStr.trim().split(":");
-  const startMins = parseInt(hh, 10) * 60 + (parseInt(mmRaw ?? "0", 10) || 0);
+  const hhNum = parseInt(hh, 10);
+  const mmNum = parseInt(mmRaw ?? "0", 10) || 0;
+  if (![y, m, d].every((n) => Number.isFinite(n)) || !Number.isFinite(hhNum) || !Number.isFinite(mmNum)) {
+    throw new Error(`Invalid date or time: ${dateStr} ${timeStr}`);
+  }
+  const startMins = hhNum * 60 + mmNum;
   const total = startMins + 120;
   const dayOffset = Math.floor(total / (24 * 60));
   const rem = total % (24 * 60);

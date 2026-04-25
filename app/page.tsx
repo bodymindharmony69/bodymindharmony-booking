@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-
-const times = ["18:00", "18:30", "19:00", "19:30", "20:00", "20:30"];
+import { BOOKING_TIME_SLOTS } from "../lib/bookingRules";
 
 function toFullDate(year: number, month: number, day: number) {
   return `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
@@ -141,7 +140,7 @@ export default function BookingPage() {
               <>
                 <h2>Choose Time</h2>
                 <div className="time-grid">
-                  {times.map((time) => (
+                  {BOOKING_TIME_SLOTS.map((time) => (
                     <div
                       key={time}
                       className="time"

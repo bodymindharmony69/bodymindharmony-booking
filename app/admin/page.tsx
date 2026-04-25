@@ -134,7 +134,7 @@ export default function AdminPage() {
     setBookingBusy(null);
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
-      alert(data.error ?? "Accept failed");
+      alert(typeof data.error === "string" ? data.error : "Accept failed");
       return;
     }
     loadBookings();
@@ -151,7 +151,7 @@ export default function AdminPage() {
     setBookingBusy(null);
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
-      alert(data.error ?? "Decline failed");
+      alert(typeof data.error === "string" ? data.error : "Decline failed");
       return;
     }
     loadBookings();

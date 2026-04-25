@@ -1,13 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "../../../lib/supabaseAdmin";
 import { requireAdminSecret } from "../../../lib/adminRequest";
-
-function isValidCalendarDateYMD(s: string): boolean {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
-  const [y, m, d] = s.split("-").map(Number);
-  const dt = new Date(y, m - 1, d);
-  return dt.getFullYear() === y && dt.getMonth() === m - 1 && dt.getDate() === d;
-}
+import { isValidCalendarDateYMD } from "../../../lib/bookingRules";
 
 export async function POST(request: NextRequest) {
   const denied = requireAdminSecret(request);
