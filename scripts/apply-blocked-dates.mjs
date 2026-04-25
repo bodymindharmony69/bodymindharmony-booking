@@ -3,8 +3,8 @@
  *
  * 1) npx vercel env pull .env.local --environment production --yes
  * 2) npm install pg@8 --no-save
- * 3) PowerShell (Supabase pooler TLS on Windows):
- *    $env:NODE_TLS_REJECT_UNAUTHORIZED = "0"; node scripts/apply-blocked-dates.mjs
+ * 3) node scripts/apply-blocked-dates.mjs
+ *    (If TLS fails on Windows only, try NODE_EXTRA_CA_CERTS or ask IT; avoid NODE_TLS_REJECT_UNAUTHORIZED=0.)
  *    Optional: node scripts/apply-blocked-dates.mjs supabase-booking-requests.sql
  *    Optional third arg: env file name (default .env.local), e.g. .env.vercel.production
  *
