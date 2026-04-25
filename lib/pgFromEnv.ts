@@ -9,7 +9,7 @@ function rawConnectionString(): string | undefined {
   );
 }
 
-/** Remove sslmode from URL so `ssl: { rejectUnauthorized: false }` applies (Vercel → Supabase pooler). */
+/** Remove sslmode/sslrootcert from URL; `pg` uses the `ssl` option below instead. */
 export function stripSslQueryParams(cs: string): string {
   const q = cs.indexOf("?");
   if (q === -1) return cs;
@@ -28,9 +28,14 @@ export function createPgClient(): pg.Client {
   }
   const cs = stripSslQueryParams(raw);
   const isLocal = cs.includes("localhost") || cs.includes("127.0.0.1");
+  if (isLocal) {
+    return new pg.Client({ connectionString: cs });
+  }
+  const tlsFlag = process.env.POSTGRES_TLS_INSECURE?.trim().toLowerCase();
+  const insecure = tlsFlag === "1" || tlsFlag === "true";
   return new pg.Client({
     connectionString: cs,
-    ssl: isLocal ? undefined : { rejectUnauthorized: false },
+    ssl: insecure ? { rejectUnauthorized: false } : { rejectUnauthorized: true },
   });
 }
 

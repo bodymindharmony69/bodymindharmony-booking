@@ -18,7 +18,7 @@ GitHub Actions (`.github/workflows/ci.yml`) runs **`npm ci` + `npm run build`** 
 - Customer chooses date and time
 - Blocked dates cannot be selected
 - Customer fills name, email, phone, address, message
-- Booking request is saved in Supabase
+- Booking request is saved in Postgres (`booking_requests` table; host is often Supabase)
 - Optional email notification using Resend
 - Admin page where you block/unblock dates
 
@@ -48,6 +48,7 @@ NEXT_PUBLIC_SUPABASE_URL=https://YOUR-PROJECT.supabase.co
 SUPABASE_URL=https://YOUR-PROJECT.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=or use SUPABASE_SECRET_KEY from the dashboard
 POSTGRES_URL and POSTGRES_URL_NON_POOLING (from Vercel Supabase integration — required for booking + admin DB routes)
+POSTGRES_TLS_INSECURE=optional; set to `1` only if Node cannot verify the DB TLS chain (try without it first — connections use certificate verification by default)
 RESEND_API_KEY=optional
 BOOKING_EMAIL=optional
 FROM_EMAIL=optional

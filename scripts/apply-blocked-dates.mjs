@@ -59,10 +59,13 @@ const sql = fs.readFileSync(sqlPath, "utf8");
 const isLocal =
   connectionString.includes("localhost") || connectionString.includes("127.0.0.1");
 
-/** Supabase pooler uses a chain Node may reject; keep TLS on but skip CA verify for this one-off script. */
+const tlsInsecure =
+  env.POSTGRES_TLS_INSECURE?.trim() === "1" ||
+  String(env.POSTGRES_TLS_INSECURE || "").toLowerCase() === "true";
+/** Default: verify TLS. Set POSTGRES_TLS_INSECURE=1 in .env.local only if the pooler cert fails verification. */
 const client = new pg.Client({
   connectionString,
-  ssl: isLocal ? undefined : { rejectUnauthorized: false },
+  ssl: isLocal ? undefined : { rejectUnauthorized: !tlsInsecure },
 });
 await client.connect();
 try {
