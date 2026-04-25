@@ -6,6 +6,7 @@
  * 3) PowerShell (Supabase pooler TLS on Windows):
  *    $env:NODE_TLS_REJECT_UNAUTHORIZED = "0"; node scripts/apply-blocked-dates.mjs
  *    Optional: node scripts/apply-blocked-dates.mjs supabase-booking-requests.sql
+ *    Optional third arg: env file name (default .env.local), e.g. .env.vercel.production
  *
  * Does not print secrets. .env.local must stay gitignored.
  */
@@ -19,7 +20,7 @@ const root = path.join(__dirname, "..");
 
 function loadEnv(filePath) {
   const env = {};
-  if (!fs.existsSync(filePath)) throw new Error("Missing " + filePath);
+  if (!fs.existsSync(filePath)) throw new Error("Missing env file: " + filePath);
   for (const line of fs.readFileSync(filePath, "utf8").split(/\r?\n/)) {
     const t = line.trim();
     if (!t || t.startsWith("#")) continue;
@@ -38,7 +39,8 @@ function loadEnv(filePath) {
   return env;
 }
 
-const env = loadEnv(path.join(root, ".env.local"));
+const envFileName = process.argv[3] || ".env.local";
+const env = loadEnv(path.join(root, envFileName));
 const connectionString =
   env.POSTGRES_URL_NON_POOLING || env.POSTGRES_URL || env.DATABASE_URL;
 if (!connectionString) {

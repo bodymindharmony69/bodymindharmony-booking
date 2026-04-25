@@ -57,15 +57,14 @@ export async function POST(request: NextRequest) {
   const message =
     typeof body.message === "string" ? clip(body.message.trim(), MAX_MESSAGE) || null : null;
 
-  const { error } = await supabaseAdmin.from("booking_requests").insert({
-    client_name,
-    client_email,
-    client_phone,
-    booking_date,
-    booking_time,
-    address,
-    message,
-    status: "pending",
+  const { error } = await supabaseAdmin.rpc("insert_booking_request", {
+    p_client_name: client_name,
+    p_client_email: client_email,
+    p_client_phone: client_phone,
+    p_booking_date: booking_date,
+    p_booking_time: booking_time,
+    p_address: address,
+    p_message: message,
   });
 
   if (error) {
