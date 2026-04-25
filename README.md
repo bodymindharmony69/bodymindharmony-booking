@@ -28,6 +28,12 @@ GitHub Actions runs **`npm ci`**, **`npm audit --audit-level=high`**, and **`npm
 1. `supabase-blocked-dates.sql` — `blocked_dates` + RLS read for anon.
 2. `supabase-booking-requests.sql` — `booking_requests` + RLS insert for anon.
 
+**Or from your machine** (uses `POSTGRES_URL` / `POSTGRES_URL_NON_POOLING` in `.env.local`; same as `vercel env pull`):
+
+```bash
+npm run db:apply
+```
+
 Legacy migrations (only if needed): `supabase-migrate-booking-requests-legacy.sql`, `supabase-reload-postgrest-schema.sql`.
 
 **Inserts and admin actions** use **Postgres** (`POSTGRES_URL` / pooler) so the app does not depend on PostgREST schema cache for writes.
