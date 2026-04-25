@@ -24,7 +24,9 @@ export async function POST(request: NextRequest) {
 
   const { data: row, error: fetchErr } = await supabaseAdmin
     .from("booking_requests")
-    .select("*")
+    .select(
+      "id, status, client_name, client_phone, client_email, address, message, booking_date, booking_time",
+    )
     .eq("id", id)
     .maybeSingle();
 
