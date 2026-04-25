@@ -33,6 +33,17 @@ export default function AdminPage() {
   const [bookingBusy, setBookingBusy] = useState<string | null>(null);
   const [blockedLoadError, setBlockedLoadError] = useState("");
   const [bookingsLoadError, setBookingsLoadError] = useState("");
+  const [googleStatus, setGoogleStatus] = useState<{
+    connected: boolean;
+    hasClientId: boolean;
+    hasClientSecret: boolean;
+    hasRedirectUri: boolean;
+    hasRefreshToken: boolean;
+    suggestedRedirectUri: string;
+    redirectMatches: boolean;
+  } | null>(null);
+  const [googleStatusError, setGoogleStatusError] = useState("");
+  const [googleAuthBusy, setGoogleAuthBusy] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -104,6 +115,34 @@ export default function AdminPage() {
   useEffect(() => {
     if (unlocked && adminSecret) loadBookings();
   }, [unlocked, adminSecret, loadBookings]);
+
+  const loadGoogleStatus = useCallback(() => {
+    if (!adminSecret) return;
+    setGoogleStatusError("");
+    fetch("/api/admin/google/calendar-status", { headers: { "x-admin-secret": adminSecret } })
+      .then(async (res) => {
+        if (!res.ok) {
+          const j = await res.json().catch(() => ({}));
+          setGoogleStatus(null);
+          setGoogleStatusError(
+            typeof j.error === "string" ? j.error : `Calendar status failed (${res.status}).`,
+          );
+          return;
+        }
+        return res.json();
+      })
+      .then((data) => {
+        if (data) setGoogleStatus(data);
+      })
+      .catch(() => {
+        setGoogleStatus(null);
+        setGoogleStatusError("Could not load Google Calendar status.");
+      });
+  }, [adminSecret]);
+
+  useEffect(() => {
+    if (unlocked && adminSecret) loadGoogleStatus();
+  }, [unlocked, adminSecret, loadGoogleStatus]);
 
   async function handleLogin(event: React.FormEvent) {
     event.preventDefault();
@@ -177,8 +216,13 @@ export default function AdminPage() {
       alert(typeof data.error === "string" ? data.error : "Accept failed");
       return;
     }
+    const data = await res.json().catch(() => ({}));
+    if (typeof data.calendarWarning === "string" && data.calendarWarning) {
+      alert(`Booking accepted.\n\nGoogle Calendar: ${data.calendarWarning}`);
+    }
     loadBookings();
     refresh();
+    loadGoogleStatus();
   }
 
   async function declineBooking(id: string) {
@@ -251,10 +295,102 @@ export default function AdminPage() {
           })}
         </div>
 
+        <h2 className="admin-sub">Google Calendar</h2>
+        <div className="admin-google-panel">
+          {googleStatusError ? <p className="admin-login-error">{googleStatusError}</p> : null}
+          {googleStatus ? (
+            <>
+              {googleStatus.connected ? (
+                <p className="admin-google-ok">
+                  Connected. Accepting a booking adds a 2-hour event to that Google account&apos;s{" "}
+                  <strong>primary</strong> calendar (Europe/London).
+                </p>
+              ) : (
+                <>
+                  <p className="note">Finish setup once; events are created when you accept a booking.</p>
+                  <ul className="admin-google-steps">
+                    <li className={googleStatus.hasClientId ? "admin-google-step--ok" : ""}>
+                      <strong>Google Cloud</strong> — Create a project → APIs &amp; Services → Enable{" "}
+                      <strong>Google Calendar API</strong> → OAuth consent screen (External) → Credentials →{" "}
+                      <strong>OAuth client ID</strong> (Web application). Authorized redirect URI must be exactly:
+                      <code className="admin-google-code">
+                        {googleStatus.suggestedRedirectUri || "(open this page on your live site to see the URL)"}
+                      </code>
+                    </li>
+                    <li className={googleStatus.hasClientId && googleStatus.hasClientSecret ? "admin-google-step--ok" : ""}>
+                      <strong>Vercel</strong> — Add env vars{" "}
+                      <code className="admin-google-code">GOOGLE_CLIENT_ID</code> and{" "}
+                      <code className="admin-google-code">GOOGLE_CLIENT_SECRET</code>, and{" "}
+                      <code className="admin-google-code">GOOGLE_REDIRECT_URI</code> (same as the redirect URI above,
+                      character-for-character). Redeploy.
+                    </li>
+                    <li
+                      className={
+                        googleStatus.hasRedirectUri && googleStatus.redirectMatches
+                          ? "admin-google-step--ok"
+                          : googleStatus.hasRedirectUri && !googleStatus.redirectMatches
+                            ? "admin-google-step--warn"
+                            : ""
+                      }
+                    >
+                      <strong>Redirect check</strong> —{" "}
+                      {googleStatus.redirectMatches
+                        ? "GOOGLE_REDIRECT_URI matches this site."
+                        : googleStatus.hasRedirectUri
+                          ? "GOOGLE_REDIRECT_URI does not match this site’s callback URL. Update it to the value in the grey box above."
+                          : "Set GOOGLE_REDIRECT_URI after redeploy."}
+                    </li>
+                    <li className={googleStatus.hasRefreshToken ? "admin-google-step--ok" : ""}>
+                      <strong>Refresh token</strong> — Click below, sign in with the Google account that should own
+                      calendar events, then copy the token from the next page into Vercel as{" "}
+                      <code className="admin-google-code">GOOGLE_REFRESH_TOKEN</code> and redeploy again.
+                    </li>
+                  </ul>
+                  <button
+                    type="button"
+                    className="admin-google-oauth-btn"
+                    disabled={
+                      googleAuthBusy ||
+                      !googleStatus.hasClientId ||
+                      !googleStatus.hasClientSecret ||
+                      !googleStatus.hasRedirectUri
+                    }
+                    onClick={async () => {
+                      setGoogleAuthBusy(true);
+                      try {
+                        const res = await fetch("/api/google/auth-url");
+                        const j = await res.json().catch(() => ({}));
+                        if (!res.ok || typeof j.url !== "string") {
+                          alert(
+                            typeof j.error === "string"
+                              ? j.error
+                              : "Could not get Google sign-in URL. Check Vercel env and redeploy.",
+                          );
+                          return;
+                        }
+                        window.open(j.url, "_blank", "noopener,noreferrer");
+                      } finally {
+                        setGoogleAuthBusy(false);
+                      }
+                    }}
+                  >
+                    {googleAuthBusy ? "Opening…" : "Open Google sign-in"}
+                  </button>
+                  <button type="button" className="secondary admin-google-refresh" onClick={() => loadGoogleStatus()}>
+                    Refresh status
+                  </button>
+                </>
+              )}
+            </>
+          ) : !googleStatusError ? (
+            <p className="note">Loading…</p>
+          ) : null}
+        </div>
+
         <h2 className="admin-sub">Pending bookings</h2>
         <p className="note">
-          Accept blocks that date and marks the request accepted. A Google Calendar event is added only when Google
-          env vars are set on the server; otherwise accept still works.
+          Accept blocks that date and marks the request accepted. If Google Calendar is connected, a calendar event is
+          added for that booking.
         </p>
         {bookingsLoadError ? <p className="admin-login-error">{bookingsLoadError}</p> : null}
         <div className="admin-bookings">

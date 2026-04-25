@@ -61,6 +61,14 @@ npx vercel env pull .env.vercel.production --environment production --yes
 node scripts/sync-next-public-supabase-url.mjs
 ```
 
+## Google Calendar (optional)
+
+When a booking is **accepted** in admin, the app can add a 2-hour event to the **primary** calendar of the Google account you authorize.
+
+Env vars: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` (must be `https://<your-domain>/api/google/callback`), and `GOOGLE_REFRESH_TOKEN` from the OAuth callback page.
+
+After setting the first three on Vercel and redeploying, open **`/admin`** — the **Google Calendar** panel shows the exact redirect URI for your site, a **Open Google sign-in** button, and a checklist. You still need to create the OAuth client in Google Cloud and paste secrets into Vercel (the app cannot do that for you).
+
 ## How admin works
 
 Go to:

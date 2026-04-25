@@ -31,6 +31,7 @@ export async function POST(request: NextRequest) {
 
   const { row } = result;
 
+  let calendarWarning: string | undefined;
   if (isGoogleCalendarConfigured()) {
     try {
       await createCalendarEvent({
@@ -44,8 +45,13 @@ export async function POST(request: NextRequest) {
       });
     } catch (e) {
       console.error("Google Calendar (accept booking):", e);
+      calendarWarning =
+        e instanceof Error ? e.message : "Google Calendar event could not be created.";
     }
   }
 
-  return NextResponse.json({ success: true });
+  return NextResponse.json({
+    success: true,
+    ...(calendarWarning ? { calendarWarning } : {}),
+  });
 }

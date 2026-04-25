@@ -322,3 +322,59 @@ textarea {
   color: #fff;
   border: 1px solid #333;
 }
+
+.admin-google-panel {
+  text-align: left;
+  border: 1px solid #222;
+  border-radius: 12px;
+  padding: 16px 18px;
+  margin-bottom: 8px;
+  background: #0a0a0a;
+}
+
+.admin-google-ok {
+  margin: 0;
+  color: #8c8;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.admin-google-steps {
+  margin: 12px 0 16px;
+  padding-left: 20px;
+  color: #ccc;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.admin-google-steps li {
+  margin-bottom: 12px;
+}
+
+.admin-google-step--ok {
+  color: #9c9;
+}
+
+.admin-google-step--warn {
+  color: #fc6;
+}
+
+.admin-google-code {
+  display: block;
+  margin: 8px 0 0;
+  padding: 10px 12px;
+  background: #111;
+  border: 1px solid #333;
+  border-radius: 8px;
+  font-size: 12px;
+  word-break: break-all;
+  color: #ddd;
+}
+
+.admin-google-oauth-btn {
+  margin-right: 10px;
+}
+
+.admin-google-refresh {
+  margin-top: 8px;
+}
