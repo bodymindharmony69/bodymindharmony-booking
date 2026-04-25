@@ -255,7 +255,16 @@ async function main() {
     }
 
     const acceptTag = `SMOKE_ACCEPT_${Date.now()}`;
-    const acceptDate = "2026-09-03";
+    /** Avoid fixed dates that may already be in blocked_dates from earlier runs. */
+    const acceptDate = (() => {
+      const d = new Date();
+      d.setUTCHours(12, 0, 0, 0);
+      d.setUTCDate(d.getUTCDate() + 200 + (Math.floor(Date.now() / 1000) % 45));
+      const y = d.getUTCFullYear();
+      const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+      const day = String(d.getUTCDate()).padStart(2, "0");
+      return `${y}-${m}-${day}`;
+    })();
     {
       const { res, json } = await fetchJson("POST", "/api/booking-request", {
         headers: { "Content-Type": "application/json" },

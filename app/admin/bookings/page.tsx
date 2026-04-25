@@ -8,9 +8,10 @@ const SESSION_SECRET = "bodymindharmony_admin_secret";
 type CalendarStatus = {
   hasClientId: boolean;
   hasClientSecret: boolean;
-  hasRedirectUri: boolean;
+  hasRedirectUriEnv: boolean;
+  hasRedirectUriEffective: boolean;
   hasRefreshToken: boolean;
-  redirectUri: string;
+  redirectUri: string | null;
 };
 
 type Booking = {
@@ -208,15 +209,21 @@ export default function AdminBookingsPage() {
             <>
               {googleStatus.hasClientId &&
               googleStatus.hasClientSecret &&
-              googleStatus.hasRedirectUri &&
+              googleStatus.hasRedirectUriEffective &&
               googleStatus.hasRefreshToken ? (
                 <p className="admin-google-ok">
                   Connected. Accept uses the <strong>primary</strong> calendar (Europe/London), 2-hour events.
                 </p>
               ) : (
                 <>
-                  <p className="note">Use this exact redirect URI in Google Cloud and in Vercel:</p>
-                  <code className="admin-google-code">{googleStatus.redirectUri}</code>
+                  <p className="note">
+                    Use this exact redirect URI in Google Cloud Console (Authorized redirect URIs). It may come from{" "}
+                    <code className="admin-google-code">GOOGLE_REDIRECT_URI</code> or be derived from your public site
+                    URL.
+                  </p>
+                  <code className="admin-google-code">
+                    {googleStatus.redirectUri ?? "(not resolved — set NEXT_PUBLIC_SITE_URL or GOOGLE_REDIRECT_URI)"}
+                  </code>
                   <ul className="admin-google-steps">
                     <li className={googleStatus.hasClientId ? "admin-google-step--ok" : ""}>
                       Set <code className="admin-google-code">GOOGLE_CLIENT_ID</code> in Vercel (OAuth client).
@@ -230,11 +237,12 @@ export default function AdminBookingsPage() {
                     </li>
                     <li
                       className={
-                        googleStatus.hasRedirectUri ? "admin-google-step--ok" : ""
+                        googleStatus.hasRedirectUriEffective ? "admin-google-step--ok" : ""
                       }
                     >
-                      Set <code className="admin-google-code">GOOGLE_REDIRECT_URI</code> to match the box above
-                      exactly.
+                      Set <code className="admin-google-code">GOOGLE_REDIRECT_URI</code> (or{" "}
+                      <code className="admin-google-code">NEXT_PUBLIC_SITE_URL</code> so redirect is derived) to match
+                      the box above exactly.
                     </li>
                     <li className={googleStatus.hasRefreshToken ? "admin-google-step--ok" : ""}>
                       Open Google sign-in, then add <code className="admin-google-code">GOOGLE_REFRESH_TOKEN</code> from
@@ -248,7 +256,7 @@ export default function AdminBookingsPage() {
                       googleAuthBusy ||
                       !googleStatus.hasClientId ||
                       !googleStatus.hasClientSecret ||
-                      !googleStatus.hasRedirectUri
+                      !googleStatus.hasRedirectUriEffective
                     }
                     onClick={async () => {
                       setGoogleAuthBusy(true);

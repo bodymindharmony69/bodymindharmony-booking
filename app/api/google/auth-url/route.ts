@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { google } from "googleapis";
 import { requireEnv } from "../../../../lib/requireEnv";
+import { requireGoogleRedirectUri } from "../../../../lib/googleRedirectUri";
 
 export const runtime = "nodejs";
 
@@ -8,7 +9,7 @@ export async function GET() {
   try {
     const clientId = requireEnv("GOOGLE_CLIENT_ID");
     const clientSecret = requireEnv("GOOGLE_CLIENT_SECRET");
-    const redirectUri = requireEnv("GOOGLE_REDIRECT_URI");
+    const redirectUri = requireGoogleRedirectUri();
 
     const oauth2Client = new google.auth.OAuth2(clientId, clientSecret, redirectUri);
     const url = oauth2Client.generateAuthUrl({

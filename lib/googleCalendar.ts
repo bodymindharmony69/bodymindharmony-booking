@@ -1,5 +1,6 @@
 import { google } from "googleapis";
 import { requireEnv } from "./requireEnv";
+import { getGoogleRedirectUri, requireGoogleRedirectUri } from "./googleRedirectUri";
 
 export type BookingForCalendar = {
   client_name: string;
@@ -15,7 +16,7 @@ export function listMissingGoogleCalendarEnv(): string[] {
   const missing: string[] = [];
   if (!process.env.GOOGLE_CLIENT_ID?.trim()) missing.push("GOOGLE_CLIENT_ID");
   if (!process.env.GOOGLE_CLIENT_SECRET?.trim()) missing.push("GOOGLE_CLIENT_SECRET");
-  if (!process.env.GOOGLE_REDIRECT_URI?.trim()) missing.push("GOOGLE_REDIRECT_URI");
+  if (!getGoogleRedirectUri()) missing.push("GOOGLE_REDIRECT_URI (or NEXT_PUBLIC_SITE_URL / SITE_URL / Vercel host)");
   if (!process.env.GOOGLE_REFRESH_TOKEN?.trim()) missing.push("GOOGLE_REFRESH_TOKEN");
   return missing;
 }
@@ -77,7 +78,7 @@ export async function createCalendarEvent(booking: BookingForCalendar): Promise<
 
   const clientId = requireEnv("GOOGLE_CLIENT_ID");
   const clientSecret = requireEnv("GOOGLE_CLIENT_SECRET");
-  const redirectUri = requireEnv("GOOGLE_REDIRECT_URI");
+  const redirectUri = requireGoogleRedirectUri();
   const refreshToken = requireEnv("GOOGLE_REFRESH_TOKEN");
 
   const oauth2Client = new google.auth.OAuth2(clientId, clientSecret, redirectUri);

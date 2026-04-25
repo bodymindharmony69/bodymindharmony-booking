@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { google } from "googleapis";
 import { requireEnv } from "../../../../lib/requireEnv";
+import { requireGoogleRedirectUri } from "../../../../lib/googleRedirectUri";
 
 export const runtime = "nodejs";
 
@@ -11,7 +12,7 @@ export async function GET(request: NextRequest) {
   try {
     clientId = requireEnv("GOOGLE_CLIENT_ID");
     clientSecret = requireEnv("GOOGLE_CLIENT_SECRET");
-    redirectUri = requireEnv("GOOGLE_REDIRECT_URI");
+    redirectUri = requireGoogleRedirectUri();
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Missing Google OAuth env vars.";
     return new NextResponse(msg, { status: 500 });
