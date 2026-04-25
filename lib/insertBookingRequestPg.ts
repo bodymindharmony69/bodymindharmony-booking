@@ -9,6 +9,18 @@ function connectionString(): string | undefined {
   );
 }
 
+/** Remove sslmode from URL so `ssl: { rejectUnauthorized: false }` is not overridden (needed on Vercel → Supabase). */
+function stripSslQueryParams(cs: string): string {
+  const q = cs.indexOf("?");
+  if (q === -1) return cs;
+  const base = cs.slice(0, q);
+  const qs = cs.slice(q + 1);
+  const parts = qs
+    .split("&")
+    .filter((p) => p && !/^sslmode=/i.test(p) && !/^sslrootcert=/i.test(p));
+  return parts.length ? `${base}?${parts.join("&")}` : base;
+}
+
 export type BookingInsertRow = {
   client_name: string;
   client_email: string | null;
@@ -21,10 +33,11 @@ export type BookingInsertRow = {
 
 /** Inserts into booking_requests over Postgres (bypasses PostgREST schema cache issues). */
 export async function insertBookingRequestPg(row: BookingInsertRow): Promise<{ error?: string }> {
-  const cs = connectionString();
-  if (!cs) {
+  const raw = connectionString();
+  if (!raw) {
     return { error: "Missing POSTGRES_URL (or NON_POOLING) for booking insert." };
   }
+  const cs = stripSslQueryParams(raw);
   const isLocal = cs.includes("localhost") || cs.includes("127.0.0.1");
   const client = new pg.Client({
     connectionString: cs,
