@@ -5,6 +5,7 @@
  * 2) npm install pg@8 --no-save
  * 3) PowerShell (Supabase pooler TLS on Windows):
  *    $env:NODE_TLS_REJECT_UNAUTHORIZED = "0"; node scripts/apply-blocked-dates.mjs
+ *    Optional: node scripts/apply-blocked-dates.mjs supabase-booking-requests.sql
  *
  * Does not print secrets. .env.local must stay gitignored.
  */
@@ -45,9 +46,10 @@ if (!connectionString) {
   process.exit(1);
 }
 
-const sqlPath = path.join(root, "supabase-blocked-dates.sql");
+const sqlFile = process.argv[2] || "supabase-blocked-dates.sql";
+const sqlPath = path.join(root, sqlFile);
 if (!fs.existsSync(sqlPath)) {
-  console.error("Missing supabase-blocked-dates.sql");
+  console.error("Missing SQL file:", sqlPath);
   process.exit(1);
 }
 const sql = fs.readFileSync(sqlPath, "utf8");
@@ -63,7 +65,7 @@ const client = new pg.Client({
 await client.connect();
 try {
   await client.query(sql);
-  console.log("OK: supabase-blocked-dates.sql applied");
+  console.log("OK: SQL applied:", sqlFile);
 } finally {
   await client.end();
 }
