@@ -1,153 +1,82 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
-function toFullDate(year: number, month: number, day: number) {
-  return `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-}
-
-function isPast(fullDate: string) {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return new Date(fullDate + "T00:00:00") < today;
+function toYMD(d: Date) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
 export default function AdminPage() {
-  const [password, setPassword] = useState("");
-  const [loggedIn, setLoggedIn] = useState(false);
-  const [currentDate, setCurrentDate] = useState(new Date());
   const [blockedDates, setBlockedDates] = useState<string[]>([]);
+  const [pending, setPending] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetch("/api/availability")
+  const refresh = useCallback(() => {
+    fetch("/api/get-blocked")
       .then((res) => res.json())
-      .then((data) => setBlockedDates(data.blockedDates || []));
+      .then((data) => setBlockedDates(data.blockedDates ?? []));
   }, []);
 
-  const year = currentDate.getFullYear();
-  const month = currentDate.getMonth();
-  const firstDay = new Date(year, month, 1).getDay();
-  const lastDate = new Date(year, month + 1, 0).getDate();
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
 
-  function login(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  const days = Array.from({ length: 30 }, (_, i) => {
+    const d = new Date(start);
+    d.setDate(start.getDate() + i);
+    return d;
+  });
 
-    if (password === process.env.NEXT_PUBLIC_ADMIN_PASSWORD) {
-      setLoggedIn(true);
-    } else {
-      alert("Wrong password.");
-    }
-  }
-
-  async function toggleDate(date: string) {
-    const response = await fetch("/api/availability", {
+  async function toggle(dateStr: string) {
+    setPending(dateStr);
+    const res = await fetch("/api/block-date", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-admin-password": password,
-      },
-      body: JSON.stringify({ date }),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ date: dateStr }),
     });
-
-    if (!response.ok) {
-      alert("Could not update date.");
+    setPending(null);
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      alert(data.error ?? "Could not update date.");
       return;
     }
-
-    const data = await response.json();
-
+    const data = await res.json();
     if (data.blocked) {
-      setBlockedDates((dates) => [...dates, date]);
+      setBlockedDates((prev) => [...new Set([...prev, dateStr])].sort());
     } else {
-      setBlockedDates((dates) => dates.filter((d) => d !== date));
+      setBlockedDates((prev) => prev.filter((d) => d !== dateStr));
     }
-  }
-
-  if (!loggedIn) {
-    return (
-      <main>
-        <div className="card">
-          <h1>Admin Login</h1>
-          <p className="note">Enter your admin password to manage unavailable dates.</p>
-          <form onSubmit={login}>
-            <label>Password</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              required
-            />
-            <button type="submit" style={{ width: "100%", marginTop: 16 }}>
-              Login
-            </button>
-          </form>
-        </div>
-      </main>
-    );
   }
 
   return (
-    <main>
-      <div className="card">
-        <h1>Admin Calendar</h1>
-        <p className="note">Click dates to block or unblock them. Customers cannot select blocked dates.</p>
-
-        <div className="calendar-header">
-          <button
-            type="button"
-            onClick={() => setCurrentDate(new Date(year, month - 1, 1))}
-          >
-            ‹
-          </button>
-          <h2>
-            {currentDate.toLocaleString("en-GB", {
-              month: "long",
-              year: "numeric",
-            })}
-          </h2>
-          <button
-            type="button"
-            onClick={() => setCurrentDate(new Date(year, month + 1, 1))}
-          >
-            ›
-          </button>
-        </div>
-
-        <div className="days">
-          {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
-            <div className="day-name" key={day}>{day}</div>
-          ))}
-        </div>
-
-        <div className="dates">
-          {Array.from({ length: firstDay }).map((_, index) => (
-            <div className="empty" key={`empty-${index}`} />
-          ))}
-
-          {Array.from({ length: lastDate }).map((_, index) => {
-            const day = index + 1;
-            const fullDate = toFullDate(year, month, day);
-            const blocked = blockedDates.includes(fullDate);
-            const past = isPast(fullDate);
-
+    <main className="admin-main">
+      <div className="admin-card">
+        <h1>Block dates</h1>
+        <p className="note">Next 30 days · green = available · red = blocked · click to toggle</p>
+        <div className="admin-grid">
+          {days.map((d) => {
+            const dateStr = toYMD(d);
+            const blocked = blockedDates.includes(dateStr);
+            const busy = pending === dateStr;
             return (
-              <div
-                key={fullDate}
-                className={`date ${blocked ? "blocked" : ""} ${past ? "past" : ""}`}
-                onClick={() => {
-                  if (past) return;
-                  toggleDate(fullDate);
-                }}
+              <button
+                key={dateStr}
+                type="button"
+                className={`admin-day ${blocked ? "admin-day--blocked" : "admin-day--open"}`}
+                disabled={busy}
+                onClick={() => toggle(dateStr)}
               >
-                {day}
-              </div>
+                <span className="admin-day-num">{d.getDate()}</span>
+                <span className="admin-day-meta">
+                  {d.toLocaleDateString("en-GB", { weekday: "short", month: "short" })}
+                </span>
+              </button>
             );
           })}
-        </div>
-
-        <div className="admin-list">
-          <strong>Blocked dates:</strong><br />
-          {blockedDates.length ? blockedDates.join(", ") : "No dates blocked yet."}
         </div>
       </div>
     </main>

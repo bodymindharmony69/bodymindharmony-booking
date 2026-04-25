@@ -193,3 +193,73 @@ textarea {
   padding: 18px;
   color: #ddd;
 }
+
+/* —— Admin: 30-day grid —— */
+.admin-main {
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 32px 20px 48px;
+}
+
+.admin-card {
+  width: 100%;
+  max-width: 720px;
+  background: #050505;
+  border: 1px solid #222;
+  border-radius: 18px;
+  padding: 28px 24px 32px;
+  box-shadow: 0 0 40px rgba(255, 255, 255, 0.04);
+}
+
+.admin-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.admin-day {
+  border: 1px solid #333;
+  border-radius: 12px;
+  padding: 12px 10px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  font: inherit;
+  color: #fff;
+  transition: border-color 0.15s, transform 0.1s;
+}
+
+.admin-day:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.admin-day:hover:not(:disabled) {
+  border-color: #888;
+}
+
+.admin-day--open {
+  background: #0d2818;
+  border-color: #1f5c36;
+}
+
+.admin-day--blocked {
+  background: #301010;
+  border-color: #6b2222;
+}
+
+.admin-day-num {
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.admin-day-meta {
+  font-size: 11px;
+  color: #aaa;
+  text-transform: capitalize;
+}

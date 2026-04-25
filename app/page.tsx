@@ -23,7 +23,7 @@ export default function BookingPage() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    fetch("/api/availability")
+    fetch("/api/get-blocked")
       .then((res) => res.json())
       .then((data) => setBlockedDates(data.blockedDates || []));
   }, []);
