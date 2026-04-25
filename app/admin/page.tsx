@@ -19,6 +19,18 @@ export default function AdminPage() {
   const [loginError, setLoginError] = useState("");
   const [blockedDates, setBlockedDates] = useState<string[]>([]);
   const [pending, setPending] = useState<string | null>(null);
+  const [bookings, setBookings] = useState<
+    {
+      id: string;
+      client_name: string;
+      booking_date: string;
+      booking_time: string;
+      status: string;
+      client_email?: string | null;
+      client_phone?: string | null;
+    }[]
+  >([]);
+  const [bookingBusy, setBookingBusy] = useState<string | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -32,13 +44,26 @@ export default function AdminPage() {
 
   const refresh = useCallback(() => {
     fetch("/api/get-blocked")
-      .then((res) => res.json())
-      .then((data) => setBlockedDates(data.blockedDates ?? []));
+      .then((res) => (res.ok ? res.json() : Promise.resolve({})))
+      .then((data) => setBlockedDates(Array.isArray(data.blockedDates) ? data.blockedDates : []))
+      .catch(() => setBlockedDates([]));
   }, []);
+
+  const loadBookings = useCallback(() => {
+    if (!adminSecret) return;
+    fetch("/api/admin/bookings/list", { headers: { "x-admin-secret": adminSecret } })
+      .then((res) => (res.ok ? res.json() : Promise.resolve({})))
+      .then((data) => (Array.isArray(data.bookings) ? setBookings(data.bookings) : setBookings([])))
+      .catch(() => setBookings([]));
+  }, [adminSecret]);
 
   useEffect(() => {
     if (unlocked) refresh();
   }, [unlocked, refresh]);
+
+  useEffect(() => {
+    if (unlocked && adminSecret) loadBookings();
+  }, [unlocked, adminSecret, loadBookings]);
 
   async function handleLogin(event: React.FormEvent) {
     event.preventDefault();
@@ -99,6 +124,39 @@ export default function AdminPage() {
     }
   }
 
+  async function acceptBooking(id: string) {
+    setBookingBusy(id);
+    const res = await fetch("/api/admin/bookings/accept", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-admin-secret": adminSecret },
+      body: JSON.stringify({ id }),
+    });
+    setBookingBusy(null);
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      alert(data.error ?? "Accept failed");
+      return;
+    }
+    loadBookings();
+    refresh();
+  }
+
+  async function declineBooking(id: string) {
+    setBookingBusy(id);
+    const res = await fetch("/api/admin/bookings/decline", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-admin-secret": adminSecret },
+      body: JSON.stringify({ id }),
+    });
+    setBookingBusy(null);
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      alert(data.error ?? "Decline failed");
+      return;
+    }
+    loadBookings();
+  }
+
   if (!unlocked) {
     return (
       <main className="admin-main">
@@ -151,6 +209,52 @@ export default function AdminPage() {
             );
           })}
         </div>
+
+        <h2 className="admin-sub">Pending bookings</h2>
+        <p className="note">Accept adds a Google Calendar event (if configured) and blocks that date.</p>
+        <div className="admin-bookings">
+          {bookings.filter((b) => b.status === "pending").length === 0 ? (
+            <p className="note">No pending requests.</p>
+          ) : (
+            <ul className="admin-booking-list">
+              {bookings
+                .filter((b) => b.status === "pending")
+                .map((b) => (
+                  <li key={b.id} className="admin-booking-row">
+                    <div>
+                      <strong>{b.client_name}</strong> · {b.booking_date} {b.booking_time}
+                      <div className="admin-booking-meta">
+                        {[b.client_email, b.client_phone].filter(Boolean).join(" · ")}
+                      </div>
+                    </div>
+                    <div className="admin-booking-actions">
+                      <button
+                        type="button"
+                        disabled={bookingBusy === b.id}
+                        onClick={() => acceptBooking(b.id)}
+                      >
+                        Accept
+                      </button>
+                      <button
+                        type="button"
+                        className="secondary"
+                        disabled={bookingBusy === b.id}
+                        onClick={() => declineBooking(b.id)}
+                      >
+                        Decline
+                      </button>
+                    </div>
+                  </li>
+                ))}
+            </ul>
+          )}
+        </div>
+
+        <p className="note" style={{ marginTop: 24 }}>
+          <a href="/" style={{ color: "#aaa" }}>
+            ← Back to booking
+          </a>
+        </p>
       </div>
     </main>
   );
