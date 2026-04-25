@@ -31,11 +31,12 @@ export function createPgClient(): pg.Client {
   if (isLocal) {
     return new pg.Client({ connectionString: cs });
   }
-  const tlsFlag = process.env.POSTGRES_TLS_INSECURE?.trim().toLowerCase();
-  const insecure = tlsFlag === "1" || tlsFlag === "true";
+  // Supabase pooler (and similar) often uses a chain Node rejects; default matches that.
+  const strict = process.env.POSTGRES_TLS_STRICT?.trim().toLowerCase();
+  const verifyTls = strict === "1" || strict === "true";
   return new pg.Client({
     connectionString: cs,
-    ssl: insecure ? { rejectUnauthorized: false } : { rejectUnauthorized: true },
+    ssl: { rejectUnauthorized: verifyTls },
   });
 }
 

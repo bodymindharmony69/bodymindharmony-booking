@@ -48,7 +48,7 @@ NEXT_PUBLIC_SUPABASE_URL=https://YOUR-PROJECT.supabase.co
 SUPABASE_URL=https://YOUR-PROJECT.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=or use SUPABASE_SECRET_KEY from the dashboard
 POSTGRES_URL and POSTGRES_URL_NON_POOLING (from Vercel Supabase integration — required for booking + admin DB routes)
-POSTGRES_TLS_INSECURE=optional; set to `1` only if Node cannot verify the DB TLS chain (try without it first — connections use certificate verification by default)
+POSTGRES_TLS_STRICT=optional; set to `1` only if you want strict TLS verification (Supabase pooler usually needs the default relaxed mode)
 RESEND_API_KEY=optional
 BOOKING_EMAIL=optional
 FROM_EMAIL=optional
