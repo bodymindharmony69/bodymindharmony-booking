@@ -27,7 +27,6 @@ function pad2(n: number): string {
   return String(n).padStart(2, "0");
 }
 
-/** Wall-clock start in Europe/London (no offset in string; API uses timeZone). */
 function startDateTime(dateStr: string, timeStr: string): string {
   const [hh, mmRaw] = timeStr.trim().split(":");
   const hhNum = parseInt(hh, 10);
@@ -38,7 +37,6 @@ function startDateTime(dateStr: string, timeStr: string): string {
   return `${dateStr}T${pad2(hhNum)}:${pad2(mmNum)}:00`;
 }
 
-/** Two hours after start on the wall clock (may roll to next calendar day). */
 function endDateTime(dateStr: string, timeStr: string): string {
   const [y, m, d] = dateStr.split("-").map((x) => parseInt(x, 10));
   const [hh, mmRaw] = timeStr.trim().split(":");
@@ -58,15 +56,13 @@ function endDateTime(dateStr: string, timeStr: string): string {
 }
 
 function buildDescription(b: BookingForCalendar): string {
-  const lines = [
+  return [
     `Name: ${b.client_name}`,
     `Phone: ${b.client_phone ?? ""}`,
     `Email: ${b.client_email ?? ""}`,
-    `Address: ${b.address ?? ""}`,
     "",
     b.message ?? "",
-  ];
-  return lines.join("\n");
+  ].join("\n");
 }
 
 export async function createCalendarEvent(booking: BookingForCalendar): Promise<void> {

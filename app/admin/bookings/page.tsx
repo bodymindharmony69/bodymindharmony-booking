@@ -6,13 +6,11 @@ const SESSION_OK = "bodymindharmony_admin_ok";
 const SESSION_SECRET = "bodymindharmony_admin_secret";
 
 type CalendarStatus = {
-  suggestedRedirectUri: string;
-  GOOGLE_CLIENT_ID: boolean;
-  GOOGLE_CLIENT_SECRET: boolean;
-  GOOGLE_REDIRECT_URI: boolean;
-  GOOGLE_REFRESH_TOKEN: boolean;
-  connected: boolean;
-  redirectMatches: boolean;
+  hasClientId: boolean;
+  hasClientSecret: boolean;
+  hasRedirectUri: boolean;
+  hasRefreshToken: boolean;
+  redirectUri: string;
 };
 
 type Booking = {
@@ -202,40 +200,37 @@ export default function AdminBookingsPage() {
           {googleStatusError ? <p className="admin-login-error">{googleStatusError}</p> : null}
           {googleStatus ? (
             <>
-              {googleStatus.connected ? (
+              {googleStatus.hasClientId &&
+              googleStatus.hasClientSecret &&
+              googleStatus.hasRedirectUri &&
+              googleStatus.hasRefreshToken ? (
                 <p className="admin-google-ok">
                   Connected. Accept uses the <strong>primary</strong> calendar (Europe/London), 2-hour events.
                 </p>
               ) : (
                 <>
                   <p className="note">Use this exact redirect URI in Google Cloud and in Vercel:</p>
-                  <code className="admin-google-code">{googleStatus.suggestedRedirectUri}</code>
+                  <code className="admin-google-code">{googleStatus.redirectUri}</code>
                   <ul className="admin-google-steps">
-                    <li className={googleStatus.GOOGLE_CLIENT_ID ? "admin-google-step--ok" : ""}>
+                    <li className={googleStatus.hasClientId ? "admin-google-step--ok" : ""}>
                       Set <code className="admin-google-code">GOOGLE_CLIENT_ID</code> in Vercel (OAuth client).
                     </li>
                     <li
                       className={
-                        googleStatus.GOOGLE_CLIENT_ID && googleStatus.GOOGLE_CLIENT_SECRET
-                          ? "admin-google-step--ok"
-                          : ""
+                        googleStatus.hasClientId && googleStatus.hasClientSecret ? "admin-google-step--ok" : ""
                       }
                     >
                       Set <code className="admin-google-code">GOOGLE_CLIENT_SECRET</code>.
                     </li>
                     <li
                       className={
-                        googleStatus.GOOGLE_REDIRECT_URI && googleStatus.redirectMatches
-                          ? "admin-google-step--ok"
-                          : googleStatus.GOOGLE_REDIRECT_URI && !googleStatus.redirectMatches
-                            ? "admin-google-step--warn"
-                            : ""
+                        googleStatus.hasRedirectUri ? "admin-google-step--ok" : ""
                       }
                     >
                       Set <code className="admin-google-code">GOOGLE_REDIRECT_URI</code> to match the box above
                       exactly.
                     </li>
-                    <li className={googleStatus.GOOGLE_REFRESH_TOKEN ? "admin-google-step--ok" : ""}>
+                    <li className={googleStatus.hasRefreshToken ? "admin-google-step--ok" : ""}>
                       Open Google sign-in, then add <code className="admin-google-code">GOOGLE_REFRESH_TOKEN</code> from
                       the callback page.
                     </li>
@@ -245,9 +240,9 @@ export default function AdminBookingsPage() {
                     className="admin-google-oauth-btn"
                     disabled={
                       googleAuthBusy ||
-                      !googleStatus.GOOGLE_CLIENT_ID ||
-                      !googleStatus.GOOGLE_CLIENT_SECRET ||
-                      !googleStatus.GOOGLE_REDIRECT_URI
+                      !googleStatus.hasClientId ||
+                      !googleStatus.hasClientSecret ||
+                      !googleStatus.hasRedirectUri
                     }
                     onClick={async () => {
                       setGoogleAuthBusy(true);

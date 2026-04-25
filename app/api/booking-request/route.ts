@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { listBlockedDatesYmd } from "../../../lib/blockedDatesPg";
 import { insertBookingRequestPg } from "../../../lib/insertBookingRequestPg";
 import { Resend } from "resend";
 
@@ -44,6 +45,14 @@ export async function POST(request: NextRequest) {
   }
   if (!isAllowedBookingTime(booking_time)) {
     return NextResponse.json({ error: "booking_time is not an available slot" }, { status: 400 });
+  }
+
+  const { dates: blocked, error: blockedErr } = await listBlockedDatesYmd();
+  if (blockedErr) {
+    return NextResponse.json({ error: blockedErr }, { status: 500 });
+  }
+  if (blocked.includes(booking_date)) {
+    return NextResponse.json({ error: "This date is not available for booking." }, { status: 409 });
   }
 
   const client_email =

@@ -1,13 +1,14 @@
-import { withPg } from "./pgFromEnv";
+import { createSupabaseAdmin } from "./supabaseAdmin";
 
 /** List blocked calendar days as YYYY-MM-DD strings. */
 export async function listBlockedDatesYmd(): Promise<{ dates: string[]; error?: string }> {
   try {
-    const dates = await withPg(async (c) => {
-      const r = await c.query(
-        `select "date"::text as d from public.blocked_dates order by "date" asc`,
-      );
-      return r.rows.map((row) => String(row.d).slice(0, 10));
+    const sb = createSupabaseAdmin();
+    const { data, error } = await sb.from("blocked_dates").select("date").order("date", { ascending: true });
+    if (error) return { dates: [], error: error.message };
+    const dates = (data ?? []).map((row) => {
+      const v = (row as { date: string }).date;
+      return typeof v === "string" ? v.slice(0, 10) : String(v).slice(0, 10);
     });
     return { dates };
   } catch (e) {
@@ -20,18 +21,23 @@ export async function toggleBlockedDateYmd(
   date: string,
 ): Promise<{ blocked: boolean; error?: string }> {
   try {
-    return await withPg(async (c) => {
-      const chk = await c.query(
-        `select 1 from public.blocked_dates where "date" = $1::date limit 1`,
-        [date],
-      );
-      if (chk.rows.length > 0) {
-        await c.query(`delete from public.blocked_dates where "date" = $1::date`, [date]);
-        return { blocked: false };
-      }
-      await c.query(`insert into public.blocked_dates ("date") values ($1::date)`, [date]);
-      return { blocked: true };
-    });
+    const sb = createSupabaseAdmin();
+    const { data: existing, error: selErr } = await sb
+      .from("blocked_dates")
+      .select("id")
+      .eq("date", date)
+      .maybeSingle();
+    if (selErr) return { blocked: false, error: selErr.message };
+
+    if (existing) {
+      const { error: delErr } = await sb.from("blocked_dates").delete().eq("date", date);
+      if (delErr) return { blocked: false, error: delErr.message };
+      return { blocked: false };
+    }
+
+    const { error: insErr } = await sb.from("blocked_dates").insert({ date });
+    if (insErr) return { blocked: false, error: insErr.message };
+    return { blocked: true };
   } catch (e) {
     return { blocked: false, error: e instanceof Error ? e.message : String(e) };
   }

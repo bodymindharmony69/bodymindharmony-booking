@@ -1,15 +1,23 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
+export function missingSupabaseServiceEnv(): string[] {
+  const m: string[] = [];
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL?.trim()) m.push("NEXT_PUBLIC_SUPABASE_URL");
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()) m.push("SUPABASE_SERVICE_ROLE_KEY");
+  return m;
+}
+
 /**
- * Service-role client for trusted server code only (bypasses RLS).
- * Uses NEXT_PUBLIC_SUPABASE_URL or SUPABASE_URL, and SUPABASE_SERVICE_ROLE_KEY or SUPABASE_SECRET_KEY.
+ * Service-role client (bypasses RLS). Server-only.
+ * Requires NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.
  */
 export function createSupabaseAdmin(): SupabaseClient {
-  const url = (process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || "").trim();
-  const key = (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY || "").trim();
-  if (!url || !key) {
-    throw new Error("Missing Supabase URL or SUPABASE_SERVICE_ROLE_KEY (or SUPABASE_SECRET_KEY)");
+  const missing = missingSupabaseServiceEnv();
+  if (missing.length > 0) {
+    throw new Error(`Missing Supabase environment variables: ${missing.join(", ")}`);
   }
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!.trim();
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY!.trim();
   return createClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
