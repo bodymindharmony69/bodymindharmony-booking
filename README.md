@@ -19,26 +19,14 @@ This is a simple Vercel-ready booking request system.
 
 ## Supabase setup
 
-Create two tables in Supabase SQL editor:
+Run these in the Supabase SQL editor (see `supabase-blocked-dates.sql` and `supabase-booking-requests.sql` in the repo for the full definitions):
 
-```sql
-create table blocked_dates (
-  date text primary key,
-  created_at timestamp with time zone default now()
-);
+- `blocked_dates` — one row per blocked calendar day.
+- `booking_requests` — customer requests with `client_name`, `booking_date`, `booking_time`, `status`, etc.
 
-create table booking_requests (
-  id uuid primary key default gen_random_uuid(),
-  selected_date text not null,
-  selected_time text not null,
-  name text not null,
-  email text not null,
-  phone text not null,
-  address text not null,
-  message text,
-  created_at timestamp with time zone default now()
-);
-```
+If you created an older table from an earlier README (columns like `selected_date` / `name`), run `supabase-migrate-booking-requests-legacy.sql` once, then in the Supabase dashboard use **Settings → API → Reload schema** so PostgREST picks up column changes.
+
+**Note:** The app writes booking rows and admin booking actions through **Postgres** (`POSTGRES_URL` from the Vercel Supabase integration) so inserts are reliable even when PostgREST’s schema cache lags.
 
 ## Vercel environment variables
 
