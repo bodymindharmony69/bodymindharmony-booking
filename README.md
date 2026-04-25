@@ -10,6 +10,8 @@ npm test
 
 Runs `next build` plus a live **smoke test** against `https://www.bodymindharmony.co.uk` (override with `SMOKE_BASE_URL`). Admin tests use `ADMIN_SECRET` or a local `ADMIN_SECRET.once.txt` file.
 
+GitHub Actions (`.github/workflows/ci.yml`) runs **`npm ci` + `npm run build`** on every push/PR to `main`. It does **not** run the live smoke test (that would need secrets and writes to your database).
+
 ## What it does
 
 - Public booking page
