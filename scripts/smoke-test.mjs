@@ -6,7 +6,8 @@
  *   SMOKE_BASE_URL=http://localhost:3000 npm run test:smoke
  *   ADMIN_SECRET=... npm run test:smoke
  *
- * If ADMIN_SECRET is unset, reads ./ADMIN_SECRET.once.txt when present.
+ * Loads `.env.local` for empty env keys (so `npm test` sees ADMIN_SECRET like `next build`).
+ * If ADMIN_SECRET is still unset, reads ./ADMIN_SECRET.once.txt when present.
  * Admin-only tests are skipped when no secret is available (exit 0).
  *
  * Options: --strict-admin  → exit 1 when admin secret missing
@@ -19,6 +20,30 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(__dirname, "..");
 const args = process.argv.slice(2);
 const strictAdmin = args.includes("--strict-admin");
+
+/** Merge .env.local into process.env when a key is unset or empty (matches Next.js dev UX for smoke). */
+function loadEnvLocal() {
+  const envPath = path.join(root, ".env.local");
+  if (!fs.existsSync(envPath)) return;
+  const text = fs.readFileSync(envPath, "utf8");
+  for (const line of text.split(/\r?\n/)) {
+    const t = line.trim();
+    if (!t || t.startsWith("#")) continue;
+    const eq = t.indexOf("=");
+    if (eq <= 0) continue;
+    const key = t.slice(0, eq).trim();
+    let val = t.slice(eq + 1).trim();
+    if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+      val = val.slice(1, -1);
+    }
+    const cur = process.env[key];
+    if (cur === undefined || String(cur).trim() === "") {
+      process.env[key] = val;
+    }
+  }
+}
+
+loadEnvLocal();
 
 const BASE = (process.env.SMOKE_BASE_URL || "https://www.bodymindharmony.co.uk").replace(/\/+$/, "");
 

@@ -8,7 +8,7 @@ This is a simple Vercel-ready booking request system.
 npm test
 ```
 
-Runs `next build` plus a live **smoke test** against `https://www.bodymindharmony.co.uk` (override with `SMOKE_BASE_URL`). Admin tests use `ADMIN_SECRET` or a local `ADMIN_SECRET.once.txt` file.
+Runs `next build` plus a live **smoke test** against `https://www.bodymindharmony.co.uk` (override with `SMOKE_BASE_URL`). Admin tests use `ADMIN_SECRET` from the environment, from **`.env.local`** (same as Next), or from a local `ADMIN_SECRET.once.txt` file.
 
 GitHub Actions (`.github/workflows/ci.yml`) runs **`npm ci` + `npm run build`** on every push/PR to `main`. It does **not** run the live smoke test (that would need secrets and writes to your database).
 
