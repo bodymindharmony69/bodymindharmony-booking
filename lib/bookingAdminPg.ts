@@ -78,33 +78,30 @@ export async function getPendingBookingForAcceptPg(
   }
 }
 
+/** After Google Calendar succeeds: upsert blocked_dates, then set booking accepted. */
 export async function markBookingAcceptedAndBlockDatePg(
   id: string,
+  bookingDateYmd: string,
 ): Promise<{ ok: true } | { error: string; code: number }> {
   try {
     const sb = createSupabaseAdmin();
-    const { data: updated, error: upErr } = await sb
+    const { error: blockErr } = await sb
+      .from("blocked_dates")
+      .upsert({ date: bookingDateYmd }, { onConflict: "date" });
+    if (blockErr) return { error: blockErr.message, code: 500 };
+
+    const { data, error: upErr } = await sb
       .from("booking_requests")
       .update({ status: "accepted" })
       .eq("id", id)
       .eq("status", "pending")
-      .select("booking_date")
+      .select("id")
       .maybeSingle();
     if (upErr) return { error: upErr.message, code: 500 };
-    if (!updated) {
-      const { data: ex } = await sb.from("booking_requests").select("status").eq("id", id).maybeSingle();
+    if (!data) {
+      const { data: ex } = await sb.from("booking_requests").select("id").eq("id", id).maybeSingle();
       if (!ex) return { error: "Not found", code: 404 };
       return { error: "Booking is not pending", code: 409 };
-    }
-    const dateStr = toYmd((updated as { booking_date: unknown }).booking_date);
-    const { error: insErr } = await sb.from("blocked_dates").insert({ date: dateStr });
-    if (insErr) {
-      const code = (insErr as { code?: string }).code;
-      const msg = insErr.message ?? "";
-      if (code === "23505" || msg.toLowerCase().includes("duplicate") || msg.toLowerCase().includes("unique")) {
-        return { ok: true };
-      }
-      return { error: insErr.message, code: 500 };
     }
     return { ok: true };
   } catch (e) {

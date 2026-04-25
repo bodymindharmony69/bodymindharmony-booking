@@ -36,6 +36,8 @@ export default function AdminBookingsPage() {
   const [googleStatus, setGoogleStatus] = useState<CalendarStatus | null>(null);
   const [googleStatusError, setGoogleStatusError] = useState("");
   const [googleAuthBusy, setGoogleAuthBusy] = useState(false);
+  const [listLoading, setListLoading] = useState(false);
+  const [actionError, setActionError] = useState("");
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -50,6 +52,7 @@ export default function AdminBookingsPage() {
   const loadBookings = useCallback(() => {
     if (!adminSecret) return;
     setBookingsLoadError("");
+    setListLoading(true);
     fetch("/api/admin/bookings/list", { headers: { "x-admin-secret": adminSecret } })
       .then(async (res) => {
         if (!res.ok) {
@@ -74,7 +77,8 @@ export default function AdminBookingsPage() {
       .catch(() => {
         setBookingsLoadError("Could not load bookings.");
         setBookings([]);
-      });
+      })
+      .finally(() => setListLoading(false));
   }, [adminSecret]);
 
   const loadGoogleStatus = useCallback(() => {
@@ -128,6 +132,7 @@ export default function AdminBookingsPage() {
   }
 
   async function acceptBooking(id: string) {
+    setActionError("");
     setBookingBusy(id);
     const res = await fetch("/api/admin/bookings/accept", {
       method: "POST",
@@ -137,7 +142,7 @@ export default function AdminBookingsPage() {
     setBookingBusy(null);
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      alert(typeof data.error === "string" ? data.error : "Accept failed");
+      setActionError(typeof data.error === "string" ? data.error : "Accept failed");
       return;
     }
     loadBookings();
@@ -145,6 +150,7 @@ export default function AdminBookingsPage() {
   }
 
   async function declineBooking(id: string) {
+    setActionError("");
     setBookingBusy(id);
     const res = await fetch("/api/admin/bookings/decline", {
       method: "POST",
@@ -152,9 +158,9 @@ export default function AdminBookingsPage() {
       body: JSON.stringify({ id }),
     });
     setBookingBusy(null);
+    const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      alert(typeof data.error === "string" ? data.error : "Decline failed");
+      setActionError(typeof data.error === "string" ? data.error : "Decline failed");
       return;
     }
     loadBookings();
@@ -278,10 +284,12 @@ export default function AdminBookingsPage() {
 
         <h2 className="admin-sub">All requests</h2>
         {bookingsLoadError ? <p className="admin-login-error">{bookingsLoadError}</p> : null}
+        {actionError ? <p className="admin-login-error">{actionError}</p> : null}
+        {listLoading ? <p className="note">Loading bookings…</p> : null}
         <div className="admin-bookings">
-          {!bookingsLoadError && bookings.length === 0 ? (
+          {!listLoading && !bookingsLoadError && bookings.length === 0 ? (
             <p className="note">No bookings yet.</p>
-          ) : bookingsLoadError ? null : (
+          ) : bookingsLoadError || listLoading ? null : (
             <ul className="admin-booking-list">
               {bookings.map((b) => (
                 <li key={b.id} className="admin-booking-row">

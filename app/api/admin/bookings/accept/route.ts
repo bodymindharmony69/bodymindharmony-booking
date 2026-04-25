@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 
-  const done = await markBookingAcceptedAndBlockDatePg(id);
+  const done = await markBookingAcceptedAndBlockDatePg(id, row.booking_date);
   if ("error" in done) {
     return NextResponse.json({ error: done.error }, { status: done.code });
   }

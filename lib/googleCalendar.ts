@@ -1,4 +1,5 @@
 import { google } from "googleapis";
+import { requireEnv } from "./requireEnv";
 
 export type BookingForCalendar = {
   client_name: string;
@@ -60,6 +61,9 @@ function buildDescription(b: BookingForCalendar): string {
     `Name: ${b.client_name}`,
     `Phone: ${b.client_phone ?? ""}`,
     `Email: ${b.client_email ?? ""}`,
+    `Date: ${b.booking_date}`,
+    `Time: ${b.booking_time}`,
+    `Address: ${b.address ?? ""}`,
     "",
     b.message ?? "",
   ].join("\n");
@@ -71,10 +75,10 @@ export async function createCalendarEvent(booking: BookingForCalendar): Promise<
     throw new Error(`Missing Google Calendar environment variables: ${missing.join(", ")}`);
   }
 
-  const clientId = process.env.GOOGLE_CLIENT_ID!.trim();
-  const clientSecret = process.env.GOOGLE_CLIENT_SECRET!.trim();
-  const redirectUri = process.env.GOOGLE_REDIRECT_URI!.trim();
-  const refreshToken = process.env.GOOGLE_REFRESH_TOKEN!.trim();
+  const clientId = requireEnv("GOOGLE_CLIENT_ID");
+  const clientSecret = requireEnv("GOOGLE_CLIENT_SECRET");
+  const redirectUri = requireEnv("GOOGLE_REDIRECT_URI");
+  const refreshToken = requireEnv("GOOGLE_REFRESH_TOKEN");
 
   const oauth2Client = new google.auth.OAuth2(clientId, clientSecret, redirectUri);
   oauth2Client.setCredentials({ refresh_token: refreshToken });
@@ -83,14 +87,24 @@ export async function createCalendarEvent(booking: BookingForCalendar): Promise<
   const start = startDateTime(booking.booking_date, booking.booking_time);
   const end = endDateTime(booking.booking_date, booking.booking_time);
 
-  await calendar.events.insert({
-    calendarId: "primary",
-    requestBody: {
-      summary: `BodyMindHarmony Massage - ${booking.client_name}`,
-      description: buildDescription(booking),
-      location: booking.address ?? "",
-      start: { dateTime: start, timeZone: "Europe/London" },
-      end: { dateTime: end, timeZone: "Europe/London" },
-    },
-  });
+  try {
+    await calendar.events.insert({
+      calendarId: "primary",
+      requestBody: {
+        summary: `BodyMindHarmony Massage - ${booking.client_name}`,
+        description: buildDescription(booking),
+        location: booking.address ?? "",
+        start: { dateTime: start, timeZone: "Europe/London" },
+        end: { dateTime: end, timeZone: "Europe/London" },
+      },
+    });
+  } catch (e) {
+    const msg =
+      e && typeof e === "object" && "message" in e
+        ? String((e as { message: unknown }).message)
+        : e instanceof Error
+          ? e.message
+          : String(e);
+    throw new Error(`Google Calendar API error: ${msg}`);
+  }
 }
