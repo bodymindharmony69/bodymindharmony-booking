@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabaseAdmin } from "../../../lib/supabaseAdmin";
+import { insertBookingRequestPg } from "../../../lib/insertBookingRequestPg";
 import { Resend } from "resend";
+
+export const runtime = "nodejs";
 import {
   isAllowedBookingTime,
   isValidCalendarDateYMD,
@@ -57,18 +59,18 @@ export async function POST(request: NextRequest) {
   const message =
     typeof body.message === "string" ? clip(body.message.trim(), MAX_MESSAGE) || null : null;
 
-  const { error } = await supabaseAdmin.rpc("insert_booking_request", {
-    p_client_name: client_name,
-    p_client_email: client_email,
-    p_client_phone: client_phone,
-    p_booking_date: booking_date,
-    p_booking_time: booking_time,
-    p_address: address,
-    p_message: message,
+  const { error: insertErr } = await insertBookingRequestPg({
+    client_name,
+    client_email,
+    client_phone,
+    booking_date,
+    booking_time,
+    address,
+    message,
   });
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  if (insertErr) {
+    return NextResponse.json({ error: insertErr }, { status: 500 });
   }
 
   if (process.env.RESEND_API_KEY && process.env.BOOKING_EMAIL && process.env.FROM_EMAIL) {
