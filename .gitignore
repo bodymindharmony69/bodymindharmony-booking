@@ -19,6 +19,7 @@ yarn-error.log*
 # env (keep .env.example if you add one)
 .env
 .env*.local
+ADMIN_SECRET.once.txt
 
 # Vercel
 .vercel
