@@ -24,8 +24,9 @@ export default function BookingPage() {
 
   useEffect(() => {
     fetch("/api/get-blocked")
-      .then((res) => res.json())
-      .then((data) => setBlockedDates(data.blockedDates || []));
+      .then((res) => (res.ok ? res.json() : Promise.resolve({})))
+      .then((data) => setBlockedDates(Array.isArray(data.blockedDates) ? data.blockedDates : []))
+      .catch(() => setBlockedDates([]));
   }, []);
 
   const year = currentDate.getFullYear();
