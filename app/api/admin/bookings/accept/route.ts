@@ -35,6 +35,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
+  if (row.status !== "pending") {
+    return NextResponse.json({ error: "Booking is not pending" }, { status: 409 });
+  }
+
   if (isGoogleCalendarConfigured()) {
     try {
       await createCalendarEvent({
@@ -67,13 +71,19 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: blockErr.message }, { status: 500 });
   }
 
-  const { error: updErr } = await supabaseAdmin
+  const { data: updated, error: updErr } = await supabaseAdmin
     .from("booking_requests")
     .update({ status: "accepted" })
-    .eq("id", id);
+    .eq("id", id)
+    .eq("status", "pending")
+    .select("id")
+    .maybeSingle();
 
   if (updErr) {
     return NextResponse.json({ error: updErr.message }, { status: 500 });
+  }
+  if (!updated) {
+    return NextResponse.json({ error: "Booking is not pending" }, { status: 409 });
   }
 
   return NextResponse.json({ success: true });

@@ -56,8 +56,14 @@ export default function BookingPage() {
 
     setLoading(false);
 
+    const payload = await response.json().catch(() => ({}));
+
     if (!response.ok) {
-      alert("Something went wrong. Please try again.");
+      const msg =
+        typeof payload.error === "string" && payload.error.trim()
+          ? payload.error
+          : "Something went wrong. Please try again.";
+      alert(msg);
       return;
     }
 
