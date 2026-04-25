@@ -1,6 +1,6 @@
 # BodyMindHarmony Booking System
 
-This is a simple Vercel-ready booking request system.
+Vercel-ready Next.js (App Router) booking requests with admin approval and **Google Calendar** on accept.
 
 ## Automated checks
 
@@ -8,88 +8,64 @@ This is a simple Vercel-ready booking request system.
 npm test
 ```
 
-Runs `next build` plus a live **smoke test** against `https://www.bodymindharmony.co.uk` (override with `SMOKE_BASE_URL`). Admin tests use `ADMIN_SECRET` from the environment, from **`.env.local`** (same as Next), or from a local `ADMIN_SECRET.once.txt` file.
+Runs `next build` plus a live **smoke test** against `https://www.bodymindharmony.co.uk` (override with `SMOKE_BASE_URL`). Admin tests use `ADMIN_SECRET` from the environment, **`.env.local`**, or `ADMIN_SECRET.once.txt`.
 
-GitHub Actions (`.github/workflows/ci.yml`) runs **`npm ci`**, **`npm audit --audit-level=high`**, and **`npm run build`** on every push/PR to `main`. It does **not** run the live smoke test (that would need secrets and writes to your database).
+GitHub Actions runs **`npm ci`**, **`npm audit --audit-level=high`**, and **`npm run build`** on push/PR to `main`. It does not run live smoke tests.
 
 ## What it does
 
-- Public booking page
-- Customer chooses date and time
-- Blocked dates cannot be selected
-- Customer fills name, email, phone, address, message
-- Booking request is saved in Postgres (`booking_requests` table; host is often Supabase)
-- Optional email notification using Resend
-- Admin page where you block/unblock dates
+- **`/`** — Calendar booking: pick date/time (blocked days disabled), then details → `POST /api/booking-request`.
+- **`/book`** — Simple mobile-friendly form → same API.
+- **`/admin`** — Toggle blocked dates for the next 30 days (`x-admin-secret`).
+- **`/admin/bookings`** — List requests (pending first), **Accept** / **Decline**, Google Calendar setup.
 
-## Pages
+**Accept flow:** validates admin secret → loads pending booking → **creates Google Calendar event** (2h, `primary`, Europe/London) → marks booking **accepted** and inserts **`blocked_dates`** for that day. If Calendar fails, the API returns **500** and the booking stays **pending**.
 
-- `/` customer booking page (calendar)
-- `/book` simple booking form
-- `/admin` block dates
-- `/admin/bookings` pending requests, accept/decline, Google Calendar setup
+**Decline:** sets status to `declined` only.
 
-## Supabase setup
+## Supabase SQL (run once in SQL editor)
 
-Run these in the Supabase SQL editor (see `supabase-blocked-dates.sql` and `supabase-booking-requests.sql` in the repo for the full definitions):
+1. `supabase-blocked-dates.sql` — `blocked_dates` + RLS read for anon.
+2. `supabase-booking-requests.sql` — `booking_requests` + RLS insert for anon.
 
-- `blocked_dates` — one row per blocked calendar day.
-- `booking_requests` — customer requests with `client_name`, `booking_date`, `booking_time`, `status`, etc.
+Legacy migrations (only if needed): `supabase-migrate-booking-requests-legacy.sql`, `supabase-reload-postgrest-schema.sql`.
 
-If you created an older table from an earlier README (columns like `selected_date` / `name`), run `supabase-migrate-booking-requests-legacy.sql` once, then in the Supabase dashboard use **Settings → API → Reload schema** so PostgREST picks up column changes.
-
-**Note:** The app writes booking rows and admin booking actions through **Postgres** (`POSTGRES_URL` from the Vercel Supabase integration) so inserts are reliable even when PostgREST’s schema cache lags.
+**Inserts and admin actions** use **Postgres** (`POSTGRES_URL` / pooler) so the app does not depend on PostgREST schema cache for writes.
 
 ## Vercel environment variables
 
-Add these in Vercel Project Settings > Environment Variables (or use the Supabase integration, which supplies Postgres URLs):
+| Variable | Purpose |
+|----------|---------|
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL (client + reference) |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon key (public) |
+| `SUPABASE_SERVICE_ROLE_KEY` | Service role (server; `lib/supabaseAdmin.ts`) |
+| `ADMIN_SECRET` | Admin password; sent as header `x-admin-secret` |
+| `GOOGLE_CLIENT_ID` | OAuth Web client |
+| `GOOGLE_CLIENT_SECRET` | OAuth client secret |
+| `GOOGLE_REDIRECT_URI` | Must match **`https://www.bodymindharmony.co.uk/api/google/callback`** (see `/admin/bookings`) |
+| `GOOGLE_REFRESH_TOKEN` | From `/api/google/callback` after sign-in |
+| `POSTGRES_URL` / `POSTGRES_URL_NON_POOLING` | From Supabase integration (required for DB routes) |
 
-```text
-ADMIN_SECRET=your-admin-password
-NEXT_PUBLIC_SUPABASE_URL=https://YOUR-PROJECT.supabase.co
-SUPABASE_URL=https://YOUR-PROJECT.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=or use SUPABASE_SECRET_KEY from the dashboard
-POSTGRES_URL and POSTGRES_URL_NON_POOLING (from Vercel Supabase integration — required for booking + admin DB routes)
-POSTGRES_TLS_STRICT=optional; set to `1` only if you want strict TLS verification (Supabase pooler usually needs the default relaxed mode)
-RESEND_API_KEY=optional
-BOOKING_EMAIL=optional
-FROM_EMAIL=optional
-```
+Optional: `POSTGRES_TLS_STRICT=1` (strict TLS; pooler often needs default). Email: `RESEND_API_KEY`, `BOOKING_EMAIL`, `FROM_EMAIL`.
 
-To copy `SUPABASE_URL` into `NEXT_PUBLIC_SUPABASE_URL` on Vercel after pulling env locally:
+Copy `SUPABASE_URL` → `NEXT_PUBLIC_SUPABASE_URL` on Vercel if needed:
 
 ```bash
 npx vercel env pull .env.vercel.production --environment production --yes
 node scripts/sync-next-public-supabase-url.mjs
 ```
 
-## Google Calendar (optional)
+## Google Calendar setup (required for Accept)
 
-When a booking is **accepted** in admin, the app can add a 2-hour event to the **primary** calendar of the Google account you authorize.
-
-Env vars: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` (must be `https://<your-domain>/api/google/callback`), and `GOOGLE_REFRESH_TOKEN` from the OAuth callback page.
-
-After setting the first three on Vercel and redeploying, open **`/admin/bookings`** — the **Google Calendar** panel shows the redirect URI, **Open Google sign-in**, and a checklist. Create the OAuth client in Google Cloud and paste secrets into Vercel.
+1. Google Cloud: enable **Calendar API**, OAuth consent, **Web** OAuth client. Authorized redirect URI: **`https://www.bodymindharmony.co.uk/api/google/callback`**.
+2. Vercel: set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` (exact string above). Redeploy.
+3. Open **`/admin/bookings`** → **Open Google sign-in** → approve → copy refresh token from callback page → `GOOGLE_REFRESH_TOKEN` in Vercel → redeploy.
 
 ## How admin works
 
-Go to:
-
-```text
-yourwebsite.com/admin
-```
-
-Enter your password.
-
-Click dates to block or unblock them.
-
-Customers on your booking page will immediately see blocked dates crossed out.
+- **`/admin`** — Password, then block/unblock dates on the grid.
+- **`/admin/bookings`** — Same password (stored in `sessionStorage` as `bodymindharmony_admin_secret`). List bookings; **Accept** needs working Google env above.
 
 ## Payment flow
 
-No automatic payment.
-
-Customer sends request.
-You check distance and availability.
-You reply with confirmation and send Stripe payment link manually.
-Booking is confirmed only after payment.
+No in-app payment. You confirm manually and send a Stripe link if you use Stripe.
