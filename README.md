@@ -2,6 +2,14 @@
 
 This is a simple Vercel-ready booking request system.
 
+## Automated checks
+
+```bash
+npm test
+```
+
+Runs `next build` plus a live **smoke test** against `https://www.bodymindharmony.co.uk` (override with `SMOKE_BASE_URL`). Admin tests use `ADMIN_SECRET` or a local `ADMIN_SECRET.once.txt` file.
+
 ## What it does
 
 - Public booking page

@@ -2,7 +2,9 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "test:smoke": "node scripts/smoke-test.mjs",
+    "test": "npm run build && npm run test:smoke"
   },
   "dependencies": {
     "googleapis": "^171.4.0",
