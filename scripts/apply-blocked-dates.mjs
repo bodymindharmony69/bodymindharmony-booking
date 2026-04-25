@@ -18,6 +18,18 @@ import pg from "pg";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(__dirname, "..");
 
+/** Same as `lib/pgFromEnv.ts` — avoid passing sslmode in URL when using explicit `ssl`. */
+function stripSslQueryParams(cs) {
+  const q = cs.indexOf("?");
+  if (q === -1) return cs;
+  const base = cs.slice(0, q);
+  const qs = cs.slice(q + 1);
+  const parts = qs
+    .split("&")
+    .filter((p) => p && !/^sslmode=/i.test(p) && !/^sslrootcert=/i.test(p));
+  return parts.length ? `${base}?${parts.join("&")}` : base;
+}
+
 function loadEnv(filePath) {
   const env = {};
   if (!fs.existsSync(filePath)) throw new Error("Missing env file: " + filePath);
@@ -41,12 +53,13 @@ function loadEnv(filePath) {
 
 const envFileName = process.argv[3] || ".env.local";
 const env = loadEnv(path.join(root, envFileName));
-const connectionString =
+const connectionStringRaw =
   env.POSTGRES_URL_NON_POOLING || env.POSTGRES_URL || env.DATABASE_URL;
-if (!connectionString) {
+if (!connectionStringRaw) {
   console.error("Missing POSTGRES_URL / POSTGRES_URL_NON_POOLING in .env.local");
   process.exit(1);
 }
+const connectionString = stripSslQueryParams(connectionStringRaw);
 
 const sqlFile = process.argv[2] || "supabase-blocked-dates.sql";
 const sqlPath = path.join(root, sqlFile);
