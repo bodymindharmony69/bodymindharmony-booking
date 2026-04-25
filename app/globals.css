@@ -263,3 +263,14 @@ textarea {
   color: #aaa;
   text-transform: capitalize;
 }
+
+.admin-login-error {
+  color: #f88;
+  font-size: 14px;
+  margin: 10px 0 0;
+}
+
+.admin-login-btn {
+  width: 100%;
+  margin-top: 18px;
+}

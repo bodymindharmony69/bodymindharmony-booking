@@ -2,6 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "../../../lib/supabaseAdmin";
 
 export async function POST(request: NextRequest) {
+  const expected = process.env.ADMIN_SECRET?.trim();
+  const headerSecret = request.headers.get("x-admin-secret");
+
+  if (!expected || headerSecret !== expected) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const body = await request.json();
   const date = body?.date;
 
