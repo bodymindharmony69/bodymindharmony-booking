@@ -4,6 +4,7 @@
     "env:pull": "cross-env VERCEL_NONINTERACTIVE=1 npx vercel env pull .env.vercel.production --environment production --yes",
     "env:push": "node scripts/push-production-env-from-local.mjs",
     "ship": "node scripts/ship-production.mjs",
+    "google:env-check-and-ship": "node scripts/google-calendar-env-check-and-ship.mjs",
     "dev": "cross-env NODE_TLS_REJECT_UNAUTHORIZED=1 next dev",
     "build": "cross-env NODE_TLS_REJECT_UNAUTHORIZED=1 next build",
     "start": "cross-env NODE_TLS_REJECT_UNAUTHORIZED=1 next start",
