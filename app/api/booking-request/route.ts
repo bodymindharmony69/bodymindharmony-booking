@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabaseClient } from "../../../lib/supabaseClient";
+import { supabaseAdmin } from "../../../lib/supabaseAdmin";
 
 export async function POST(request: NextRequest) {
   let body: Record<string, unknown>;
@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "booking_date and booking_time are required" }, { status: 400 });
   }
 
-  const { error } = await supabaseClient.from("booking_requests").insert({
+  const { error } = await supabaseAdmin.from("booking_requests").insert({
     client_name,
     client_email: typeof body.client_email === "string" ? body.client_email.trim() || null : null,
     client_phone: typeof body.client_phone === "string" ? body.client_phone.trim() || null : null,

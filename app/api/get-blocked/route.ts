@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
-import { supabaseClient } from "../../../lib/supabaseClient";
+import { supabaseAdmin } from "../../../lib/supabaseAdmin";
 
+/** Public read of blocked dates; uses service role server-side only (key never exposed). */
 export async function GET() {
-  const { data, error } = await supabaseClient
+  const { data, error } = await supabaseAdmin
     .from("blocked_dates")
     .select("date")
     .order("date", { ascending: true });

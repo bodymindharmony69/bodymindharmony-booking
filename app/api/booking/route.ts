@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabaseClient } from "../../../lib/supabaseClient";
+import { supabaseAdmin } from "../../../lib/supabaseAdmin";
 import { Resend } from "resend";
 
 export async function POST(request: NextRequest) {
@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  const { error } = await supabaseClient.from("booking_requests").insert({
+  const { error } = await supabaseAdmin.from("booking_requests").insert({
     client_name: String(body.name).trim(),
     client_email: String(body.email).trim(),
     client_phone: String(body.phone).trim(),
