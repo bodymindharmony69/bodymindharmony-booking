@@ -1,25 +1,4 @@
-import pg from "pg";
-
-function connectionString(): string | undefined {
-  return (
-    process.env.POSTGRES_URL_NON_POOLING?.trim() ||
-    process.env.POSTGRES_URL?.trim() ||
-    process.env.DATABASE_URL?.trim() ||
-    undefined
-  );
-}
-
-/** Remove sslmode from URL so `ssl: { rejectUnauthorized: false }` is not overridden (needed on Vercel → Supabase). */
-function stripSslQueryParams(cs: string): string {
-  const q = cs.indexOf("?");
-  if (q === -1) return cs;
-  const base = cs.slice(0, q);
-  const qs = cs.slice(q + 1);
-  const parts = qs
-    .split("&")
-    .filter((p) => p && !/^sslmode=/i.test(p) && !/^sslrootcert=/i.test(p));
-  return parts.length ? `${base}?${parts.join("&")}` : base;
-}
+import { createPgClient } from "./pgFromEnv";
 
 export type BookingInsertRow = {
   client_name: string;
@@ -33,17 +12,9 @@ export type BookingInsertRow = {
 
 /** Inserts into booking_requests over Postgres (bypasses PostgREST schema cache issues). */
 export async function insertBookingRequestPg(row: BookingInsertRow): Promise<{ error?: string }> {
-  const raw = connectionString();
-  if (!raw) {
-    return { error: "Missing POSTGRES_URL (or NON_POOLING) for booking insert." };
-  }
-  const cs = stripSslQueryParams(raw);
-  const isLocal = cs.includes("localhost") || cs.includes("127.0.0.1");
-  const client = new pg.Client({
-    connectionString: cs,
-    ssl: isLocal ? undefined : { rejectUnauthorized: false },
-  });
+  let client;
   try {
+    client = createPgClient();
     await client.connect();
     await client.query(
       `insert into public.booking_requests (
@@ -62,8 +33,11 @@ export async function insertBookingRequestPg(row: BookingInsertRow): Promise<{ e
     return {};
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
+    if (message.includes("Missing POSTGRES_URL")) {
+      return { error: "Missing POSTGRES_URL (or NON_POOLING) for booking insert." };
+    }
     return { error: message };
   } finally {
-    await client.end().catch(() => undefined);
+    await client?.end().catch(() => undefined);
   }
 }

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabaseAdmin } from "../../../../../lib/supabaseAdmin";
 import { requireAdminSecret } from "../../../../../lib/adminRequest";
+import { declineBookingPg } from "../../../../../lib/bookingAdminPg";
+
+export const runtime = "nodejs";
 
 export async function POST(request: NextRequest) {
   const denied = requireAdminSecret(request);
@@ -18,35 +20,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "id is required" }, { status: 400 });
   }
 
-  const { data: row, error: fetchErr } = await supabaseAdmin
-    .from("booking_requests")
-    .select("id, status")
-    .eq("id", id)
-    .maybeSingle();
-
-  if (fetchErr) {
-    return NextResponse.json({ error: fetchErr.message }, { status: 500 });
-  }
-  if (!row) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
-  if (row.status !== "pending") {
-    return NextResponse.json({ error: "Booking is not pending" }, { status: 409 });
-  }
-
-  const { data: updated, error } = await supabaseAdmin
-    .from("booking_requests")
-    .update({ status: "declined" })
-    .eq("id", id)
-    .eq("status", "pending")
-    .select("id")
-    .maybeSingle();
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-  if (!updated) {
-    return NextResponse.json({ error: "Booking is not pending" }, { status: 409 });
+  const result = await declineBookingPg(id);
+  if ("error" in result) {
+    return NextResponse.json({ error: result.error }, { status: result.code });
   }
 
   return NextResponse.json({ success: true });

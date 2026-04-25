@@ -1,21 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabaseAdmin } from "../../../../../lib/supabaseAdmin";
 import { requireAdminSecret } from "../../../../../lib/adminRequest";
+import { listBookingRequestsPg } from "../../../../../lib/bookingAdminPg";
+
+export const runtime = "nodejs";
 
 export async function GET(request: NextRequest) {
   const denied = requireAdminSecret(request);
   if (denied) return denied;
 
-  const { data, error } = await supabaseAdmin
-    .from("booking_requests")
-    .select(
-      "id, client_name, client_email, client_phone, booking_date, booking_time, address, message, status, created_at",
-    )
-    .order("created_at", { ascending: false });
-
+  const { rows, error } = await listBookingRequestsPg();
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error }, { status: 500 });
   }
 
-  return NextResponse.json({ bookings: data ?? [] });
+  return NextResponse.json({ bookings: rows });
 }
