@@ -1,5 +1,14 @@
 import { google } from "googleapis";
 
+export function isGoogleCalendarConfigured(): boolean {
+  return Boolean(
+    process.env.GOOGLE_CLIENT_ID?.trim() &&
+      process.env.GOOGLE_CLIENT_SECRET?.trim() &&
+      process.env.GOOGLE_REDIRECT_URI?.trim() &&
+      process.env.GOOGLE_REFRESH_TOKEN?.trim(),
+  );
+}
+
 export type BookingForCalendar = {
   client_name: string;
   client_phone: string | null;

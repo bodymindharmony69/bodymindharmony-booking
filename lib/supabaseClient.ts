@@ -1,3 +1,7 @@
+/**
+ * Browser-safe anon client (RLS). API routes currently use `supabaseAdmin` for reliability on Vercel;
+ * keep this module for future client components or when anon keys are aligned.
+ */
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
 function projectRefFromUrl(urlRaw: string): string | null {

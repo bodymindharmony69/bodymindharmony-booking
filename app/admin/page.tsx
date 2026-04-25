@@ -211,7 +211,10 @@ export default function AdminPage() {
         </div>
 
         <h2 className="admin-sub">Pending bookings</h2>
-        <p className="note">Accept adds a Google Calendar event (if configured) and blocks that date.</p>
+        <p className="note">
+          Accept blocks that date and marks the request accepted. A Google Calendar event is added only when Google
+          env vars are set on the server; otherwise accept still works.
+        </p>
         <div className="admin-bookings">
           {bookings.filter((b) => b.status === "pending").length === 0 ? (
             <p className="note">No pending requests.</p>

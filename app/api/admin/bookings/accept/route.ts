@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "../../../../../lib/supabaseAdmin";
 import { requireAdminSecret } from "../../../../../lib/adminRequest";
-import { createCalendarEvent } from "../../../../../lib/googleCalendar";
+import {
+  createCalendarEvent,
+  isGoogleCalendarConfigured,
+} from "../../../../../lib/googleCalendar";
 
 export async function POST(request: NextRequest) {
   const denied = requireAdminSecret(request);
@@ -32,19 +35,21 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  try {
-    await createCalendarEvent({
-      client_name: row.client_name,
-      client_phone: row.client_phone,
-      client_email: row.client_email,
-      address: row.address,
-      message: row.message,
-      booking_date: row.booking_date,
-      booking_time: row.booking_time,
-    });
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : "Calendar error";
-    return NextResponse.json({ error: msg }, { status: 500 });
+  if (isGoogleCalendarConfigured()) {
+    try {
+      await createCalendarEvent({
+        client_name: row.client_name,
+        client_phone: row.client_phone,
+        client_email: row.client_email,
+        address: row.address,
+        message: row.message,
+        booking_date: row.booking_date,
+        booking_time: row.booking_time,
+      });
+    } catch (e) {
+      console.error("Google Calendar (accept booking):", e);
+      // Still accept booking in DB when Calendar fails (misconfig / quota / etc.)
+    }
   }
 
   const dateStr =

@@ -40,17 +40,17 @@ export default function BookingPage() {
 
     const form = new FormData(event.currentTarget);
 
-    const response = await fetch("/api/booking", {
+    const response = await fetch("/api/booking-request", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        selectedDate,
-        selectedTime,
-        name: form.get("name"),
-        email: form.get("email"),
-        phone: form.get("phone"),
-        address: form.get("address"),
-        message: form.get("message"),
+        client_name: String(form.get("name") ?? "").trim(),
+        client_email: String(form.get("email") ?? "").trim(),
+        client_phone: String(form.get("phone") ?? "").trim(),
+        booking_date: selectedDate,
+        booking_time: selectedTime,
+        address: String(form.get("address") ?? "").trim(),
+        message: String(form.get("message") ?? "").trim(),
       }),
     });
 
