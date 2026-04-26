@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { listBlockedDatesYmd } from "../../../lib/blockedDatesPg";
 import { insertBookingRequestPg } from "../../../lib/insertBookingRequestPg";
+import { sendBookingReceivedEmail } from "../../../lib/email";
 import { Resend } from "resend";
-
-export const runtime = "nodejs";
 import {
   isAllowedBookingTime,
   isValidCalendarDateYMD,
 } from "../../../lib/bookingRules";
+
+export const runtime = "nodejs";
 
 function clip(s: string, max: number): string {
   return s.length <= max ? s : s.slice(0, max);
@@ -68,7 +69,7 @@ export async function POST(request: NextRequest) {
   const message =
     typeof body.message === "string" ? clip(body.message.trim(), MAX_MESSAGE) || null : null;
 
-  const { error: insertErr } = await insertBookingRequestPg({
+  const { row: inserted, error: insertErr } = await insertBookingRequestPg({
     client_name,
     client_email,
     client_phone,
@@ -80,6 +81,20 @@ export async function POST(request: NextRequest) {
 
   if (insertErr) {
     return NextResponse.json({ error: insertErr }, { status: 500 });
+  }
+
+  if (inserted) {
+    try {
+      await sendBookingReceivedEmail({
+        client_name: inserted.client_name,
+        client_email: inserted.client_email,
+        booking_date: inserted.booking_date,
+        booking_time: inserted.booking_time,
+        address: inserted.address,
+      });
+    } catch (e) {
+      console.error("sendBookingReceivedEmail (booking-request):", e);
+    }
   }
 
   if (process.env.RESEND_API_KEY && process.env.BOOKING_EMAIL && process.env.FROM_EMAIL) {

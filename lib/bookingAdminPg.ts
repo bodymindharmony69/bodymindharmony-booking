@@ -11,12 +11,19 @@ export type BookingRow = {
   message: string | null;
   status: string;
   created_at: string;
+  final_price: number | null;
 };
 
 function toYmd(d: unknown): string {
   if (typeof d === "string") return d.slice(0, 10);
   if (d instanceof Date) return d.toISOString().slice(0, 10);
   return String(d).slice(0, 10);
+}
+
+function parseFinalPrice(v: unknown): number | null {
+  if (v == null || v === "") return null;
+  const n = typeof v === "number" ? v : parseFloat(String(v));
+  return Number.isFinite(n) ? n : null;
 }
 
 function mapBookingRow(r: Record<string, unknown>): BookingRow {
@@ -34,16 +41,43 @@ function mapBookingRow(r: Record<string, unknown>): BookingRow {
     message: r.message == null ? null : String(r.message),
     status: String(r.status),
     created_at,
+    final_price: "final_price" in r ? parseFinalPrice(r.final_price) : null,
   };
+}
+
+const BOOKING_SELECT_BASE =
+  "id, client_name, client_email, client_phone, booking_date, booking_time, address, message, status, created_at";
+
+async function selectBookingsWithOptionalFinalPrice(sb: ReturnType<typeof createSupabaseAdmin>) {
+  const withFinal = await sb
+    .from("booking_requests")
+    .select(`${BOOKING_SELECT_BASE}, final_price`)
+    .order("created_at", { ascending: false });
+  if (!(withFinal.error && /final_price/i.test(withFinal.error.message))) {
+    return { data: withFinal.data, error: withFinal.error };
+  }
+  return await sb.from("booking_requests").select(BOOKING_SELECT_BASE).order("created_at", { ascending: false });
+}
+
+async function selectOneBookingWithOptionalFinalPrice(
+  sb: ReturnType<typeof createSupabaseAdmin>,
+  id: string,
+) {
+  const withFinal = await sb
+    .from("booking_requests")
+    .select(`${BOOKING_SELECT_BASE}, final_price`)
+    .eq("id", id)
+    .maybeSingle();
+  if (!(withFinal.error && /final_price/i.test(withFinal.error.message))) {
+    return { data: withFinal.data, error: withFinal.error };
+  }
+  return await sb.from("booking_requests").select(BOOKING_SELECT_BASE).eq("id", id).maybeSingle();
 }
 
 export async function listBookingRequestsPg(): Promise<{ rows: BookingRow[]; error?: string }> {
   try {
     const sb = createSupabaseAdmin();
-    const { data, error } = await sb
-      .from("booking_requests")
-      .select("id, client_name, client_email, client_phone, booking_date, booking_time, address, message, status, created_at")
-      .order("created_at", { ascending: false });
+    const { data, error } = await selectBookingsWithOptionalFinalPrice(sb);
     if (error) return { rows: [], error: error.message };
     const rows = (data ?? []).map((r) => mapBookingRow(r as Record<string, unknown>));
     rows.sort((a, b) => {
@@ -63,11 +97,7 @@ export async function getPendingBookingForAcceptPg(
 ): Promise<{ ok: true; row: BookingRow } | { error: string; code: number }> {
   try {
     const sb = createSupabaseAdmin();
-    const { data, error } = await sb
-      .from("booking_requests")
-      .select("id, client_name, client_email, client_phone, booking_date, booking_time, address, message, status, created_at")
-      .eq("id", id)
-      .maybeSingle();
+    const { data, error } = await selectOneBookingWithOptionalFinalPrice(sb, id);
     if (error) return { error: error.message, code: 500 };
     if (!data) return { error: "Not found", code: 404 };
     const row = mapBookingRow(data as Record<string, unknown>);
@@ -78,10 +108,15 @@ export async function getPendingBookingForAcceptPg(
   }
 }
 
-/** After Google Calendar succeeds: upsert blocked_dates, then set booking accepted. */
+export type AcceptBookingOptions = {
+  finalPrice?: number | null;
+};
+
+/** After Google Calendar succeeds: upsert blocked_dates, then set booking accepted (and final_price when supported). */
 export async function markBookingAcceptedAndBlockDatePg(
   id: string,
   bookingDateYmd: string,
+  options?: AcceptBookingOptions,
 ): Promise<{ ok: true } | { error: string; code: number }> {
   try {
     const sb = createSupabaseAdmin();
@@ -90,13 +125,31 @@ export async function markBookingAcceptedAndBlockDatePg(
       .upsert({ date: bookingDateYmd }, { onConflict: "date" });
     if (blockErr) return { error: blockErr.message, code: 500 };
 
-    const { data, error: upErr } = await sb
+    const fp =
+      options?.finalPrice != null && Number.isFinite(options.finalPrice) ? Number(options.finalPrice) : undefined;
+    const updateWithPrice: { status: string; final_price?: number } =
+      fp != null ? { status: "accepted", final_price: fp } : { status: "accepted" };
+
+    let { data, error: upErr } = await sb
       .from("booking_requests")
-      .update({ status: "accepted" })
+      .update(updateWithPrice)
       .eq("id", id)
       .eq("status", "pending")
       .select("id")
       .maybeSingle();
+
+    if (upErr && updateWithPrice.final_price != null && /final_price/i.test(upErr.message)) {
+      const r2 = await sb
+        .from("booking_requests")
+        .update({ status: "accepted" })
+        .eq("id", id)
+        .eq("status", "pending")
+        .select("id")
+        .maybeSingle();
+      data = r2.data;
+      upErr = r2.error;
+    }
+
     if (upErr) return { error: upErr.message, code: 500 };
     if (!data) {
       const { data: ex } = await sb.from("booking_requests").select("id").eq("id", id).maybeSingle();

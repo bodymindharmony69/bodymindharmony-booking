@@ -20,10 +20,12 @@ type Booking = {
   booking_date: string;
   booking_time: string;
   status: string;
-  client_email?: string | null;
-  client_phone?: string | null;
-  address?: string | null;
-  message?: string | null;
+  client_email: string | null;
+  client_phone: string | null;
+  address: string | null;
+  message: string | null;
+  created_at: string;
+  final_price: number | null;
 };
 
 export default function AdminBookingsPage() {
@@ -39,6 +41,7 @@ export default function AdminBookingsPage() {
   const [googleAuthBusy, setGoogleAuthBusy] = useState(false);
   const [listLoading, setListLoading] = useState(false);
   const [actionError, setActionError] = useState("");
+  const [finalPriceById, setFinalPriceById] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -135,10 +138,16 @@ export default function AdminBookingsPage() {
   async function acceptBooking(id: string) {
     setActionError("");
     setBookingBusy(id);
+    const raw = (finalPriceById[id] ?? "").trim().replace(/£/g, "");
+    const payload: { id: string; final_price?: number } = { id };
+    if (raw) {
+      const n = parseFloat(raw);
+      if (Number.isFinite(n)) payload.final_price = n;
+    }
     const res = await fetch("/api/admin/bookings/accept", {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-admin-secret": adminSecret },
-      body: JSON.stringify({ id }),
+      body: JSON.stringify(payload),
     });
     setBookingBusy(null);
     const data = await res.json().catch(() => ({}));
@@ -299,36 +308,93 @@ export default function AdminBookingsPage() {
             <p className="note">No bookings yet.</p>
           ) : bookingsLoadError || listLoading ? null : (
             <ul className="admin-booking-list">
-              {bookings.map((b) => (
-                <li key={b.id} className="admin-booking-row">
-                  <div>
-                    <strong>{b.client_name}</strong> · {b.booking_date} {b.booking_time}{" "}
-                    <span style={{ color: "#888" }}>({b.status})</span>
-                    <div className="admin-booking-meta">
-                      {[b.client_email, b.client_phone].filter(Boolean).join(" · ")}
+              {bookings.map((b) => {
+                const created =
+                  b.created_at &&
+                  !Number.isNaN(Date.parse(b.created_at)) &&
+                  new Date(b.created_at).toLocaleString("en-GB", {
+                    dateStyle: "medium",
+                    timeStyle: "short",
+                  });
+                return (
+                  <li key={b.id} className="admin-booking-row">
+                    <div className="admin-booking-body">
+                      <div className="admin-booking-detail">
+                        <div>
+                          <span className="admin-booking-label">Name:</span> {b.client_name}
+                        </div>
+                        <div>
+                          <span className="admin-booking-label">Phone:</span> {b.client_phone || "—"}
+                        </div>
+                        <div>
+                          <span className="admin-booking-label">Email:</span> {b.client_email || "—"}
+                        </div>
+                        <div>
+                          <span className="admin-booking-label">Date:</span> {b.booking_date}
+                        </div>
+                        <div>
+                          <span className="admin-booking-label">Time:</span> {b.booking_time}
+                        </div>
+                        <div className="admin-booking-address-wrap">
+                          <span className="admin-booking-label">Address:</span>
+                          <div className="admin-booking-address">{b.address?.trim() ? b.address : "—"}</div>
+                        </div>
+                        <div>
+                          <span className="admin-booking-label">Message:</span>{" "}
+                          <span className="admin-booking-message">{b.message?.trim() ? b.message : "—"}</span>
+                        </div>
+                        <div>
+                          <span className="admin-booking-label">Status:</span> {b.status}
+                        </div>
+                        {b.final_price != null && Number.isFinite(b.final_price) ? (
+                          <div>
+                            <span className="admin-booking-label">Final price (£):</span>{" "}
+                            {b.final_price.toFixed(2)}
+                          </div>
+                        ) : null}
+                        <div>
+                          <span className="admin-booking-label">Created:</span> {created || b.created_at || "—"}
+                        </div>
+                      </div>
+                      {b.status === "pending" ? (
+                        <div className="admin-booking-pending-actions">
+                          <label className="admin-booking-price-label" htmlFor={`final-price-${b.id}`}>
+                            Final price (£)
+                          </label>
+                          <input
+                            id={`final-price-${b.id}`}
+                            type="text"
+                            inputMode="decimal"
+                            autoComplete="off"
+                            placeholder="e.g. 65"
+                            value={finalPriceById[b.id] ?? ""}
+                            onChange={(e) =>
+                              setFinalPriceById((prev) => ({ ...prev, [b.id]: e.target.value }))
+                            }
+                          />
+                          <div className="admin-booking-actions">
+                            <button
+                              type="button"
+                              disabled={bookingBusy === b.id}
+                              onClick={() => acceptBooking(b.id)}
+                            >
+                              Accept
+                            </button>
+                            <button
+                              type="button"
+                              className="secondary"
+                              disabled={bookingBusy === b.id}
+                              onClick={() => declineBooking(b.id)}
+                            >
+                              Decline
+                            </button>
+                          </div>
+                        </div>
+                      ) : null}
                     </div>
-                  </div>
-                  {b.status === "pending" ? (
-                    <div className="admin-booking-actions">
-                      <button
-                        type="button"
-                        disabled={bookingBusy === b.id}
-                        onClick={() => acceptBooking(b.id)}
-                      >
-                        Accept
-                      </button>
-                      <button
-                        type="button"
-                        className="secondary"
-                        disabled={bookingBusy === b.id}
-                        onClick={() => declineBooking(b.id)}
-                      >
-                        Decline
-                      </button>
-                    </div>
-                  ) : null}
-                </li>
-              ))}
+                  </li>
+                );
+              })}
             </ul>
           )}
         </div>

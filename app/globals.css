@@ -296,15 +296,83 @@ textarea {
 
 .admin-booking-row {
   display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 12px;
+  flex-direction: column;
+  gap: 14px;
   border: 1px solid #222;
   border-radius: 12px;
   padding: 14px;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
   background: #080808;
+}
+
+.admin-booking-body {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  width: 100%;
+}
+
+.admin-booking-detail {
+  flex: 1;
+  min-width: 0;
+  color: #e8e8e8;
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.admin-booking-detail > div {
+  margin-bottom: 4px;
+}
+
+.admin-booking-label {
+  color: #888;
+  font-weight: 600;
+  margin-right: 6px;
+}
+
+.admin-booking-address-wrap {
+  margin-top: 6px;
+  margin-bottom: 6px;
+}
+
+.admin-booking-address {
+  margin-top: 6px;
+  padding: 12px 14px;
+  background: #142238;
+  border: 2px solid #3d6ea8;
+  border-radius: 10px;
+  color: #fff;
+  font-size: 15px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.admin-booking-message {
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: #ccc;
+}
+
+.admin-booking-pending-actions {
+  flex-shrink: 0;
+  width: 100%;
+  max-width: 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.admin-booking-price-label {
+  margin: 0;
+  color: #bbb;
+  font-size: 13px;
+}
+
+.admin-booking-pending-actions input {
+  margin: 0;
 }
 
 .admin-booking-meta {
@@ -315,8 +383,10 @@ textarea {
 
 .admin-booking-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   flex-shrink: 0;
+  margin-top: 4px;
 }
 
 .admin-booking-actions button.secondary {

@@ -10,6 +10,7 @@ export type BookingForCalendar = {
   message: string | null;
   booking_date: string;
   booking_time: string;
+  final_price?: number | string | null;
 };
 
 export function listMissingGoogleCalendarEnv(): string[] {
@@ -57,17 +58,28 @@ function endDateTime(dateStr: string, timeStr: string): string {
   return `${endDay.getUTCFullYear()}-${pad2(endDay.getUTCMonth() + 1)}-${pad2(endDay.getUTCDate())}T${pad2(endH)}:${pad2(endM)}:00`;
 }
 
+function formatFinalPrice(p: number | string | null | undefined): string | null {
+  if (p == null || p === "") return null;
+  const n = typeof p === "number" ? p : parseFloat(String(p).replace(/[£,\s]/g, ""));
+  if (!Number.isFinite(n)) return null;
+  return `£${n.toFixed(2)}`;
+}
+
 function buildDescription(b: BookingForCalendar): string {
+  const priceLine = formatFinalPrice(b.final_price);
   return [
     `Name: ${b.client_name}`,
     `Phone: ${b.client_phone ?? ""}`,
     `Email: ${b.client_email ?? ""}`,
+    `Address: ${b.address ?? ""}`,
+    `Message: ${b.message ?? ""}`,
+    priceLine ? `Final price: ${priceLine}` : "",
+    "",
     `Date: ${b.booking_date}`,
     `Time: ${b.booking_time}`,
-    `Address: ${b.address ?? ""}`,
-    "",
-    b.message ?? "",
-  ].join("\n");
+  ]
+    .filter((line) => line !== "")
+    .join("\n");
 }
 
 export async function createCalendarEvent(booking: BookingForCalendar): Promise<void> {
