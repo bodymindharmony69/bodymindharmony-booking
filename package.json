@@ -1,6 +1,6 @@
 {
   "scripts": {
-    "db:apply": "node scripts/apply-blocked-dates.mjs supabase-blocked-dates.sql && node scripts/apply-blocked-dates.mjs supabase-booking-requests.sql",
+    "db:apply": "node scripts/apply-blocked-dates.mjs supabase-blocked-dates.sql && node scripts/apply-blocked-dates.mjs supabase-booking-requests.sql && node scripts/apply-blocked-dates.mjs supabase-booking-payments.sql",
     "env:pull": "cross-env VERCEL_NONINTERACTIVE=1 npx vercel env pull .env.vercel.production --environment production --yes",
     "env:push": "node scripts/push-production-env-from-local.mjs",
     "ship": "node scripts/ship-production.mjs",
