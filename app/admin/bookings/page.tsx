@@ -26,6 +26,8 @@ type Booking = {
   message: string | null;
   created_at: string;
   final_price: number | null;
+  payment_url: string | null;
+  payment_status: string | null;
 };
 
 export default function AdminBookingsPage() {
@@ -42,6 +44,19 @@ export default function AdminBookingsPage() {
   const [listLoading, setListLoading] = useState(false);
   const [actionError, setActionError] = useState("");
   const [finalPriceById, setFinalPriceById] = useState<Record<string, string>>({});
+  const [paymentUrlFlashById, setPaymentUrlFlashById] = useState<Record<string, string>>({});
+
+  function parsedFinalPricePounds(id: string): number | null {
+    const raw = (finalPriceById[id] ?? "").trim().replace(/£/g, "");
+    if (!raw) return null;
+    const n = parseFloat(raw);
+    if (!Number.isFinite(n) || n <= 0) return null;
+    return n;
+  }
+
+  function hasValidFinalPrice(id: string): boolean {
+    return parsedFinalPricePounds(id) != null;
+  }
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -137,23 +152,25 @@ export default function AdminBookingsPage() {
 
   async function acceptBooking(id: string) {
     setActionError("");
-    setBookingBusy(id);
-    const raw = (finalPriceById[id] ?? "").trim().replace(/£/g, "");
-    const payload: { id: string; final_price?: number } = { id };
-    if (raw) {
-      const n = parseFloat(raw);
-      if (Number.isFinite(n)) payload.final_price = n;
+    const pounds = parsedFinalPricePounds(id);
+    if (pounds == null) {
+      setActionError("Enter a final price greater than zero before accepting.");
+      return;
     }
+    setBookingBusy(id);
     const res = await fetch("/api/admin/bookings/accept", {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-admin-secret": adminSecret },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ id, final_price: pounds }),
     });
     setBookingBusy(null);
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
       setActionError(typeof data.error === "string" ? data.error : "Accept failed");
       return;
+    }
+    if (typeof data.payment_url === "string" && data.payment_url) {
+      setPaymentUrlFlashById((prev) => ({ ...prev, [id]: data.payment_url as string }));
     }
     loadBookings();
     loadGoogleStatus();
@@ -207,8 +224,8 @@ export default function AdminBookingsPage() {
       <div className="admin-card">
         <h1>Bookings</h1>
         <p className="note">
-          Accept creates a Google Calendar event, marks the request accepted, and blocks the date. Decline only
-          updates status.
+          Accept creates a Google Calendar event, a Stripe payment link, marks the request accepted, blocks the date,
+          and emails the client with the payment link. Decline only updates status.
         </p>
 
         <h2 className="admin-sub">Google Calendar</h2>
@@ -352,6 +369,24 @@ export default function AdminBookingsPage() {
                             {b.final_price.toFixed(2)}
                           </div>
                         ) : null}
+                        {(b.payment_url || paymentUrlFlashById[b.id]) ? (
+                          <div className="admin-booking-payment">
+                            <span className="admin-booking-label">Payment link:</span>{" "}
+                            <a
+                              href={b.payment_url || paymentUrlFlashById[b.id]}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{ color: "#8cf", wordBreak: "break-all" }}
+                            >
+                              {b.payment_url || paymentUrlFlashById[b.id]}
+                            </a>
+                          </div>
+                        ) : null}
+                        {b.payment_status ? (
+                          <div>
+                            <span className="admin-booking-label">Payment status:</span> {b.payment_status}
+                          </div>
+                        ) : null}
                         <div>
                           <span className="admin-booking-label">Created:</span> {created || b.created_at || "—"}
                         </div>
@@ -375,7 +410,7 @@ export default function AdminBookingsPage() {
                           <div className="admin-booking-actions">
                             <button
                               type="button"
-                              disabled={bookingBusy === b.id}
+                              disabled={bookingBusy === b.id || !hasValidFinalPrice(b.id)}
                               onClick={() => acceptBooking(b.id)}
                             >
                               Accept

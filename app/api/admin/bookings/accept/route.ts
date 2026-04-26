@@ -6,6 +6,7 @@ import {
 } from "../../../../../lib/bookingAdminPg";
 import { createCalendarEvent } from "../../../../../lib/googleCalendar";
 import { sendBookingAcceptedEmail } from "../../../../../lib/email";
+import { createBookingPaymentLink } from "../../../../../lib/stripe";
 
 export const runtime = "nodejs";
 
@@ -37,7 +38,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "id is required" }, { status: 400 });
   }
 
-  const finalPriceFromRequest = parseFinalPriceFromBody(body.final_price);
+  const finalPrice = parseFinalPriceFromBody(body.final_price);
+  if (finalPrice === undefined) {
+    return NextResponse.json({ error: "Final price is required" }, { status: 400 });
+  }
 
   const loaded = await getPendingBookingForAcceptPg(id);
   if ("error" in loaded) {
@@ -45,31 +49,42 @@ export async function POST(request: NextRequest) {
   }
 
   const { row } = loaded;
-  const effectiveFinalPrice =
-    finalPriceFromRequest !== undefined
-      ? finalPriceFromRequest
-      : row.final_price != null && Number.isFinite(row.final_price)
-        ? row.final_price
-        : undefined;
+  const bookingWithPrice = { ...row, final_price: finalPrice };
 
   try {
     await createCalendarEvent({
-      client_name: row.client_name,
-      client_phone: row.client_phone,
-      client_email: row.client_email,
-      address: row.address,
-      message: row.message,
-      booking_date: row.booking_date,
-      booking_time: row.booking_time,
-      final_price: effectiveFinalPrice ?? null,
+      client_name: bookingWithPrice.client_name,
+      client_phone: bookingWithPrice.client_phone,
+      client_email: bookingWithPrice.client_email,
+      address: bookingWithPrice.address,
+      message: bookingWithPrice.message,
+      booking_date: bookingWithPrice.booking_date,
+      booking_time: bookingWithPrice.booking_time,
+      final_price: bookingWithPrice.final_price,
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Google Calendar failed";
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 
+  let paymentUrl: string;
+  try {
+    paymentUrl = await createBookingPaymentLink({
+      id: row.id,
+      client_name: row.client_name,
+      booking_date: row.booking_date,
+      booking_time: row.booking_time,
+      final_price: finalPrice,
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Stripe checkout failed";
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
+
   const done = await markBookingAcceptedAndBlockDatePg(id, row.booking_date, {
-    finalPrice: effectiveFinalPrice,
+    finalPrice,
+    paymentUrl,
+    paymentStatus: "pending",
   });
   if ("error" in done) {
     return NextResponse.json({ error: done.error }, { status: done.code });
@@ -82,11 +97,12 @@ export async function POST(request: NextRequest) {
       booking_date: row.booking_date,
       booking_time: row.booking_time,
       address: row.address,
-      final_price: effectiveFinalPrice ?? null,
+      final_price: finalPrice,
+      payment_url: paymentUrl,
     });
   } catch (e) {
     console.error("sendBookingAcceptedEmail (accept):", e);
   }
 
-  return NextResponse.json({ success: true });
+  return NextResponse.json({ success: true, payment_url: paymentUrl });
 }

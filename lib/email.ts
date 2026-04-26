@@ -7,6 +7,7 @@ export type BookingEmailPayload = {
   booking_time: string;
   address: string | null;
   final_price?: number | string | null;
+  payment_url?: string | null;
 };
 
 export type EmailSendResult = { skipped: boolean };
@@ -80,16 +81,18 @@ export async function sendBookingAcceptedEmail(booking: BookingEmailPayload): Pr
   }
 
   const priceStr = formatPrice(booking.final_price);
-  const priceLine =
-    priceStr != null ? `Final price: £${priceStr}\n` : "";
+  const priceLine = priceStr != null ? `Final price: £${priceStr}\n` : "";
+  const pay = (booking.payment_url ?? "").trim();
+  const payLine = pay ? `\nPlease complete payment here:\n${pay}\n` : "";
 
   const text =
     `Hi ${booking.client_name},\n\n` +
-    `Your BodyMindHarmony booking has been confirmed.\n` +
-    `Date: ${booking.booking_date}\n` +
-    `Time: ${booking.booking_time}\n` +
-    `Address: ${booking.address ?? ""}\n` +
+    `Your BodyMindHarmony booking has been confirmed.\n\n` +
+    `Date:\n${booking.booking_date}\n\n` +
+    `Time:\n${booking.booking_time}\n\n` +
+    `Address:\n${booking.address ?? ""}\n\n` +
     priceLine +
+    payLine +
     `\nI look forward to seeing you.\n\n` +
     `Love,\n` +
     `BodyMindHarmony`;

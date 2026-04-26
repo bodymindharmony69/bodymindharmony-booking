@@ -1,0 +1,24 @@
+STEP 1:
+Open Stripe Dashboard.
+
+STEP 2:
+Go to Developers → API keys.
+
+STEP 3:
+Copy Secret key.
+
+STEP 4:
+Paste into `.env.local`:
+STRIPE_SECRET_KEY=your_secret_key
+
+STEP 5:
+Run:
+npm run google:env-check-and-ship
+
+STEP 6:
+Run SQL file in Supabase:
+supabase-booking-payments.sql
+
+STEP 7:
+Test:
+Submit booking → admin enters final price → Accept → payment link appears and email is sent.

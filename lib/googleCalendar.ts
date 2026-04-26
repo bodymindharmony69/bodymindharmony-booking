@@ -11,6 +11,7 @@ export type BookingForCalendar = {
   booking_date: string;
   booking_time: string;
   final_price?: number | string | null;
+  payment_url?: string | null;
 };
 
 export function listMissingGoogleCalendarEnv(): string[] {
@@ -67,6 +68,7 @@ function formatFinalPrice(p: number | string | null | undefined): string | null 
 
 function buildDescription(b: BookingForCalendar): string {
   const priceLine = formatFinalPrice(b.final_price);
+  const payUrl = (b.payment_url ?? "").trim();
   return [
     `Name: ${b.client_name}`,
     `Phone: ${b.client_phone ?? ""}`,
@@ -74,6 +76,7 @@ function buildDescription(b: BookingForCalendar): string {
     `Address: ${b.address ?? ""}`,
     `Message: ${b.message ?? ""}`,
     priceLine ? `Final price: ${priceLine}` : "",
+    payUrl ? `Payment URL: ${payUrl}` : "",
     "",
     `Date: ${b.booking_date}`,
     `Time: ${b.booking_time}`,

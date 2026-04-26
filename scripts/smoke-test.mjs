@@ -293,7 +293,7 @@ async function main() {
       {
         const { res, json } = await fetchJson("POST", "/api/admin/bookings/accept", {
           headers: { "Content-Type": "application/json", "x-admin-secret": adminSecret },
-          body: { id: acceptId },
+          body: { id: acceptId, final_price: 1 },
         });
         const errText = typeof json?.error === "string" ? json.error : "";
         if (
@@ -301,6 +301,13 @@ async function main() {
           (errText.includes("Missing Google Calendar") || errText.includes("GOOGLE_"))
         ) {
           skipped("admin accept + blocked date checks", "Google Calendar env not set on server (required for accept)");
+        } else if (
+          res.status === 500 &&
+          (errText.includes("STRIPE_SECRET_KEY") ||
+            errText.includes("Missing env: STRIPE") ||
+            errText.includes("Stripe"))
+        ) {
+          skipped("admin accept + blocked date checks", "Stripe not configured on server (required for accept)");
         } else if (res.status !== 200 || !json?.success) {
           bad("POST admin accept", `${res.status} ${JSON.stringify(json)}`);
         } else {
