@@ -106,6 +106,8 @@ export async function POST(request: NextRequest) {
     payment_url: paymentUrl,
   };
 
+  console.log("ACCEPT booking client_email:", row.client_email);
+
   try {
     await sendBookingAcceptedEmail(acceptedPayload);
   } catch (e) {

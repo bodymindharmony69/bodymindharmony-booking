@@ -55,10 +55,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "This date is not available for booking." }, { status: 409 });
   }
 
-  const client_email =
-    typeof body.client_email === "string"
-      ? clip(body.client_email.trim(), MAX_EMAIL) || null
-      : null;
+  /** Prefer `client_email`; accept legacy `email` if the payload uses the wrong key. */
+  const rawEmail =
+    (typeof body.client_email === "string" ? body.client_email : "") ||
+    (typeof body.email === "string" ? body.email : "");
+  const client_email = clip(rawEmail.trim(), MAX_EMAIL) || null;
+  console.log("BOOKING_REQUEST has client_email:", Boolean(client_email));
+
   const client_phone =
     typeof body.client_phone === "string"
       ? clip(body.client_phone.trim(), MAX_PHONE) || null

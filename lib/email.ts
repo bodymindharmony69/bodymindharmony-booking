@@ -48,17 +48,47 @@ function resendClient(): Resend | null {
   return new Resend(key);
 }
 
-/** Client first; include admin as copy when both exist. Admin-only when no client email. */
-function recipientsClientPlusAdminCopy(clientEmail: string | null | undefined): string[] | null {
-  const c = clientEmail?.trim() || "";
-  const a = adminEmail()?.trim() || "";
-  if (c && a) {
-    if (c.toLowerCase() === a.toLowerCase()) return [c];
-    return [c, a];
+/**
+ * Sends the same customer-facing message to the client first, then to ADMIN_EMAIL as a copy.
+ * Two separate Resend calls so dashboards show correct TO per message.
+ */
+async function sendResendCustomerCopyToClientThenAdmin(params: {
+  from: string;
+  subject: string;
+  text: string;
+  clientEmail: string | null | undefined;
+}): Promise<void> {
+  const resend = resendClient();
+  if (!resend) throw new Error("Missing Resend client");
+
+  const client = params.clientEmail?.trim() || "";
+  const admin = adminEmail()?.trim() || "";
+  const recipients: string[] = [];
+  if (client) recipients.push(client);
+  if (admin && (!client || admin.toLowerCase() !== client.toLowerCase())) {
+    recipients.push(admin);
   }
-  if (c) return [c];
-  if (a) return [a];
-  return null;
+  console.log("EMAIL RECIPIENTS:", recipients);
+
+  if (client) {
+    await resend.emails.send({
+      from: params.from,
+      to: client,
+      subject: params.subject,
+      text: params.text,
+    });
+  }
+  if (admin && (!client || admin.toLowerCase() !== client.toLowerCase())) {
+    await resend.emails.send({
+      from: params.from,
+      to: admin,
+      subject: params.subject,
+      text: params.text,
+    });
+  }
+  if (!client && !admin) {
+    throw new Error("No recipients");
+  }
 }
 
 export async function sendBookingReceivedEmail(booking: BookingRequestEmailFields): Promise<EmailResult> {
@@ -72,11 +102,6 @@ export async function sendBookingReceivedEmail(booking: BookingRequestEmailField
       return { skipped: true, reason: "Missing email env" };
     }
 
-    const to = recipientsClientPlusAdminCopy(booking.client_email);
-    if (!to || to.length === 0) {
-      return { skipped: true, reason: "No recipients" };
-    }
-
     const text =
       `Hi ${booking.client_name},\n\n` +
       `Thank you for your booking request.\n\n` +
@@ -88,16 +113,20 @@ export async function sendBookingReceivedEmail(booking: BookingRequestEmailField
       `Love,\n` +
       `BodyMindHarmony`;
 
-    const resend = resendClient();
-    if (!resend) return { skipped: true, reason: "Missing email env" };
-
     console.log("Sending email to:", booking.client_email);
-    await resend.emails.send({
-      from,
-      to,
-      subject: "BodyMindHarmony booking request received",
-      text,
-    });
+    try {
+      await sendResendCustomerCopyToClientThenAdmin({
+        from,
+        subject: "BodyMindHarmony booking request received",
+        text,
+        clientEmail: booking.client_email,
+      });
+    } catch (e) {
+      if (e instanceof Error && e.message === "No recipients") {
+        return { skipped: true, reason: "No recipients" };
+      }
+      throw e;
+    }
     return { ok: true };
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
@@ -160,11 +189,6 @@ export async function sendBookingAcceptedEmail(booking: BookingAcceptedEmailFiel
       return { skipped: true, reason: "Missing email env" };
     }
 
-    const to = recipientsClientPlusAdminCopy(booking.client_email);
-    if (!to || to.length === 0) {
-      return { skipped: true, reason: "No recipients" };
-    }
-
     const pay = (booking.payment_url ?? "").trim();
     const price = formatPrice(booking.final_price);
 
@@ -180,16 +204,20 @@ export async function sendBookingAcceptedEmail(booking: BookingAcceptedEmailFiel
       `Love,\n` +
       `BodyMindHarmony`;
 
-    const resend = resendClient();
-    if (!resend) return { skipped: true, reason: "Missing email env" };
-
     console.log("Sending email to:", booking.client_email);
-    await resend.emails.send({
-      from,
-      to,
-      subject: "BodyMindHarmony booking confirmed",
-      text,
-    });
+    try {
+      await sendResendCustomerCopyToClientThenAdmin({
+        from,
+        subject: "BodyMindHarmony booking confirmed",
+        text,
+        clientEmail: booking.client_email,
+      });
+    } catch (e) {
+      if (e instanceof Error && e.message === "No recipients") {
+        return { skipped: true, reason: "No recipients" };
+      }
+      throw e;
+    }
     return { ok: true };
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);

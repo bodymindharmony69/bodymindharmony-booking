@@ -44,7 +44,10 @@ export default function BookingPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         client_name: String(form.get("name") ?? "").trim(),
-        client_email: String(form.get("email") ?? "").trim(),
+        client_email: (() => {
+          const v = String(form.get("client_email") ?? "").trim();
+          return v || null;
+        })(),
         client_phone: String(form.get("phone") ?? "").trim(),
         booking_date: selectedDate,
         booking_time: selectedTime,
@@ -177,7 +180,7 @@ export default function BookingPage() {
               <input name="name" required />
 
               <label>Email</label>
-              <input name="email" type="email" required />
+              <input name="client_email" type="email" required autoComplete="email" />
 
               <label>Phone</label>
               <input name="phone" required />

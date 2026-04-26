@@ -14,7 +14,7 @@ export default function BookPage() {
     setLoading(true);
     const fd = new FormData(e.currentTarget);
     const client_name = String(fd.get("name") ?? "").trim();
-    const client_email = String(fd.get("email") ?? "").trim();
+    const client_email = String(fd.get("client_email") ?? "").trim();
     const client_phone = String(fd.get("phone") ?? "").trim();
     const booking_date = String(fd.get("date") ?? "").trim();
     const booking_time = String(fd.get("time") ?? "").trim();
@@ -82,9 +82,9 @@ export default function BookPage() {
             Name *
             <input name="name" required autoComplete="name" />
           </label>
-          <label>
+            <label>
             Email
-            <input name="email" type="email" autoComplete="email" />
+            <input name="client_email" type="email" autoComplete="email" />
           </label>
           <label>
             Phone
