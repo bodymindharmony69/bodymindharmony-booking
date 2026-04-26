@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { listBlockedDatesYmd } from "../../../lib/blockedDatesPg";
 import { insertBookingRequestPg } from "../../../lib/insertBookingRequestPg";
-import { sendBookingReceivedEmail } from "../../../lib/email";
-import { Resend } from "resend";
+import { sendAdminBookingNotification, sendBookingReceivedEmail } from "../../../lib/email";
 import {
   isAllowedBookingTime,
   isValidCalendarDateYMD,
@@ -84,39 +83,25 @@ export async function POST(request: NextRequest) {
   }
 
   if (inserted) {
+    const payload = {
+      client_name: inserted.client_name,
+      client_email: inserted.client_email,
+      client_phone: inserted.client_phone,
+      booking_date: inserted.booking_date,
+      booking_time: inserted.booking_time,
+      address: inserted.address,
+      message: inserted.message,
+      status: inserted.status,
+    };
     try {
-      await sendBookingReceivedEmail({
-        client_name: inserted.client_name,
-        client_email: inserted.client_email,
-        booking_date: inserted.booking_date,
-        booking_time: inserted.booking_time,
-        address: inserted.address,
-      });
+      await sendBookingReceivedEmail(payload);
     } catch (e) {
       console.error("sendBookingReceivedEmail (booking-request):", e);
     }
-  }
-
-  if (process.env.RESEND_API_KEY && process.env.BOOKING_EMAIL && process.env.FROM_EMAIL) {
     try {
-      const resend = new Resend(process.env.RESEND_API_KEY);
-      await resend.emails.send({
-        from: process.env.FROM_EMAIL,
-        to: process.env.BOOKING_EMAIL,
-        subject: "BodyMindHarmony booking request",
-        text:
-          `New booking request\n\n` +
-          `Date: ${booking_date}\n` +
-          `Time: ${booking_time}\n\n` +
-          `Name: ${client_name}\n` +
-          `Email: ${client_email ?? ""}\n` +
-          `Phone: ${client_phone ?? ""}\n` +
-          `Address/Postcode: ${address ?? ""}\n\n` +
-          `Message:\n${message ?? ""}\n\n` +
-          `Booking is not confirmed until approved and paid.`,
-      });
+      await sendAdminBookingNotification(payload);
     } catch (e) {
-      console.error("Resend (booking-request):", e);
+      console.error("sendAdminBookingNotification (booking-request):", e);
     }
   }
 

@@ -5,7 +5,10 @@ import {
   markBookingAcceptedAndBlockDatePg,
 } from "../../../../../lib/bookingAdminPg";
 import { createCalendarEvent } from "../../../../../lib/googleCalendar";
-import { sendBookingAcceptedEmail } from "../../../../../lib/email";
+import {
+  sendAdminBookingAcceptedNotification,
+  sendBookingAcceptedEmail,
+} from "../../../../../lib/email";
 import { createBookingPaymentLink } from "../../../../../lib/stripe";
 
 export const runtime = "nodejs";
@@ -90,18 +93,28 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: done.error }, { status: done.code });
   }
 
+  const acceptedPayload = {
+    client_name: row.client_name,
+    client_email: row.client_email,
+    client_phone: row.client_phone,
+    booking_date: row.booking_date,
+    booking_time: row.booking_time,
+    address: row.address,
+    message: row.message,
+    status: "accepted",
+    final_price: finalPrice,
+    payment_url: paymentUrl,
+  };
+
   try {
-    await sendBookingAcceptedEmail({
-      client_name: row.client_name,
-      client_email: row.client_email,
-      booking_date: row.booking_date,
-      booking_time: row.booking_time,
-      address: row.address,
-      final_price: finalPrice,
-      payment_url: paymentUrl,
-    });
+    await sendBookingAcceptedEmail(acceptedPayload);
   } catch (e) {
     console.error("sendBookingAcceptedEmail (accept):", e);
+  }
+  try {
+    await sendAdminBookingAcceptedNotification(acceptedPayload);
+  } catch (e) {
+    console.error("sendAdminBookingAcceptedNotification (accept):", e);
   }
 
   return NextResponse.json({ success: true, payment_url: paymentUrl });

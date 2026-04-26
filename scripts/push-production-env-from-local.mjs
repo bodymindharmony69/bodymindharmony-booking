@@ -29,6 +29,9 @@ const KEYS = [
   "GOOGLE_REFRESH_TOKEN",
   /** Stripe Checkout (admin accept → payment link). */
   "STRIPE_SECRET_KEY",
+  "RESEND_API_KEY",
+  "FROM_EMAIL",
+  "ADMIN_EMAIL",
 ];
 
 function parseEnv(filePath) {
