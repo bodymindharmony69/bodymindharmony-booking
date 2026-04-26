@@ -38,14 +38,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "id is required" }, { status: 400 });
   }
 
-  const finalPrice = parseFinalPriceFromBody(body.final_price);
-  if (finalPrice === undefined) {
-    return NextResponse.json({ error: "Final price is required" }, { status: 400 });
-  }
-
   const loaded = await getPendingBookingForAcceptPg(id);
   if ("error" in loaded) {
     return NextResponse.json({ error: loaded.error }, { status: loaded.code });
+  }
+
+  const finalPrice = parseFinalPriceFromBody(body.final_price);
+  if (finalPrice === undefined) {
+    return NextResponse.json({ error: "Final price is required" }, { status: 400 });
   }
 
   const { row } = loaded;
