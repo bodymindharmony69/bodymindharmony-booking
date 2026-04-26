@@ -48,19 +48,33 @@ function resendClient(): Resend | null {
   return new Resend(key);
 }
 
+/** Client first; include admin as copy when both exist. Admin-only when no client email. */
+function recipientsClientPlusAdminCopy(clientEmail: string | null | undefined): string[] | null {
+  const c = clientEmail?.trim() || "";
+  const a = adminEmail()?.trim() || "";
+  if (c && a) {
+    if (c.toLowerCase() === a.toLowerCase()) return [c];
+    return [c, a];
+  }
+  if (c) return [c];
+  if (a) return [a];
+  return null;
+}
+
 export async function sendBookingReceivedEmail(booking: BookingRequestEmailFields): Promise<EmailResult> {
   try {
     if (!hasEmailEnv()) {
       console.warn("[email] Missing RESEND_API_KEY or FROM_EMAIL; skip sendBookingReceivedEmail");
       return { skipped: true, reason: "Missing email env" };
     }
-    const to = booking.client_email?.trim();
-    if (!to) {
-      return { skipped: true, reason: "No client email" };
-    }
     const from = fromAddress();
     if (!from) {
       return { skipped: true, reason: "Missing email env" };
+    }
+
+    const to = recipientsClientPlusAdminCopy(booking.client_email);
+    if (!to || to.length === 0) {
+      return { skipped: true, reason: "No recipients" };
     }
 
     const text =
@@ -77,6 +91,7 @@ export async function sendBookingReceivedEmail(booking: BookingRequestEmailField
     const resend = resendClient();
     if (!resend) return { skipped: true, reason: "Missing email env" };
 
+    console.log("Sending email to:", booking.client_email);
     await resend.emails.send({
       from,
       to,
@@ -140,13 +155,14 @@ export async function sendBookingAcceptedEmail(booking: BookingAcceptedEmailFiel
       console.warn("[email] Missing RESEND_API_KEY or FROM_EMAIL; skip sendBookingAcceptedEmail");
       return { skipped: true, reason: "Missing email env" };
     }
-    const to = booking.client_email?.trim();
-    if (!to) {
-      return { skipped: true, reason: "No client email" };
-    }
     const from = fromAddress();
     if (!from) {
       return { skipped: true, reason: "Missing email env" };
+    }
+
+    const to = recipientsClientPlusAdminCopy(booking.client_email);
+    if (!to || to.length === 0) {
+      return { skipped: true, reason: "No recipients" };
     }
 
     const pay = (booking.payment_url ?? "").trim();
@@ -167,6 +183,7 @@ export async function sendBookingAcceptedEmail(booking: BookingAcceptedEmailFiel
     const resend = resendClient();
     if (!resend) return { skipped: true, reason: "Missing email env" };
 
+    console.log("Sending email to:", booking.client_email);
     await resend.emails.send({
       from,
       to,
