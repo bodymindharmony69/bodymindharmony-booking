@@ -13,5 +13,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error }, { status: 500 });
   }
 
-  return NextResponse.json({ bookings: rows });
+  return NextResponse.json(
+    { bookings: rows },
+    { headers: { "Cache-Control": "no-store, private" } },
+  );
 }

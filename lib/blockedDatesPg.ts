@@ -1,9 +1,15 @@
 import { createSupabaseAdmin } from "./supabaseAdmin";
+import { createClient } from "@supabase/supabase-js";
+import { requireEnv } from "./requireEnv";
 
 /** List blocked calendar days as YYYY-MM-DD strings. */
 export async function listBlockedDatesYmd(): Promise<{ dates: string[]; error?: string }> {
   try {
-    const sb = createSupabaseAdmin();
+    const sb = createClient(
+      requireEnv("NEXT_PUBLIC_SUPABASE_URL"),
+      requireEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY"),
+      { auth: { persistSession: false, autoRefreshToken: false } },
+    );
     const { data, error } = await sb.from("blocked_dates").select("date").order("date", { ascending: true });
     if (error) return { dates: [], error: error.message };
     const dates = (data ?? []).map((row) => {
@@ -24,7 +30,7 @@ export async function toggleBlockedDateYmd(
     const sb = createSupabaseAdmin();
     const { data: existing, error: selErr } = await sb
       .from("blocked_dates")
-      .select("id")
+      .select("date")
       .eq("date", date)
       .maybeSingle();
     if (selErr) return { blocked: false, error: selErr.message };

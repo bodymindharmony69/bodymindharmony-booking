@@ -12,6 +12,7 @@ dist/
 
 # debug
 npm-debug.log*
+.npm-cache/
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
@@ -25,6 +26,7 @@ ADMIN_SECRET.once.txt
 
 # Vercel
 .vercel
+.vercel-xdg-*/
 
 # OS / editor
 .DS_Store

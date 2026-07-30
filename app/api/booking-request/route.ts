@@ -4,8 +4,9 @@ import { insertBookingRequestPg } from "../../../lib/insertBookingRequestPg";
 import { sendAdminBookingNotification, sendBookingReceivedEmail } from "../../../lib/email";
 import {
   isAllowedBookingTime,
-  isValidCalendarDateYMD,
+  isBookableDateYMD,
 } from "../../../lib/bookingRules";
+import { allowBookingRequest } from "../../../lib/rateLimit";
 
 export const runtime = "nodejs";
 
@@ -40,8 +41,8 @@ export async function POST(request: NextRequest) {
   if (!booking_date || !booking_time) {
     return NextResponse.json({ error: "booking_date and booking_time are required" }, { status: 400 });
   }
-  if (!isValidCalendarDateYMD(booking_date)) {
-    return NextResponse.json({ error: "booking_date must be a valid YYYY-MM-DD" }, { status: 400 });
+  if (!isBookableDateYMD(booking_date)) {
+    return NextResponse.json({ error: "Choose a date from today up to one year ahead." }, { status: 400 });
   }
   if (!isAllowedBookingTime(booking_time)) {
     return NextResponse.json({ error: "booking_time is not an available slot" }, { status: 400 });
@@ -59,17 +60,37 @@ export async function POST(request: NextRequest) {
   const rawEmail =
     (typeof body.client_email === "string" ? body.client_email : "") ||
     (typeof body.email === "string" ? body.email : "");
-  const client_email = clip(rawEmail.trim(), MAX_EMAIL) || null;
-  console.log("BOOKING_REQUEST has client_email:", Boolean(client_email));
+  const client_email = clip(rawEmail.trim(), MAX_EMAIL);
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(client_email)) {
+    return NextResponse.json({ error: "A valid email address is required." }, { status: 400 });
+  }
 
   const client_phone =
     typeof body.client_phone === "string"
-      ? clip(body.client_phone.trim(), MAX_PHONE) || null
-      : null;
+      ? clip(body.client_phone.trim(), MAX_PHONE)
+      : "";
   const address =
-    typeof body.address === "string" ? clip(body.address.trim(), MAX_ADDRESS) || null : null;
+    typeof body.address === "string" ? clip(body.address.trim(), MAX_ADDRESS) : "";
+  if (client_phone.length < 7 || address.length < 5) {
+    return NextResponse.json({ error: "Phone and service address are required." }, { status: 400 });
+  }
   const message =
     typeof body.message === "string" ? clip(body.message.trim(), MAX_MESSAGE) || null : null;
+
+  try {
+    if (!(await allowBookingRequest(request, client_email))) {
+      return NextResponse.json(
+        { error: "Too many requests. Please wait 15 minutes and try again." },
+        { status: 429 },
+      );
+    }
+  } catch (error) {
+    console.error("booking rate limit:", error);
+    return NextResponse.json(
+      { error: "Booking is temporarily unavailable. Please try again shortly." },
+      { status: 503 },
+    );
+  }
 
   const { row: inserted, error: insertErr } = await insertBookingRequestPg({
     client_name,

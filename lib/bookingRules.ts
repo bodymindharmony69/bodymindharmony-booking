@@ -17,6 +17,23 @@ export function isValidCalendarDateYMD(s: string): boolean {
   return dt.getFullYear() === y && dt.getMonth() === m - 1 && dt.getDate() === d;
 }
 
+export function todayInLondonYMD(now = new Date()): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/London",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(now);
+}
+
+export function isBookableDateYMD(value: string, now = new Date()): boolean {
+  if (!isValidCalendarDateYMD(value)) return false;
+  const today = todayInLondonYMD(now);
+  const max = new Date(`${today}T12:00:00Z`);
+  max.setUTCDate(max.getUTCDate() + 365);
+  return value >= today && value <= max.toISOString().slice(0, 10);
+}
+
 export function isAllowedBookingTime(t: string): boolean {
   const x = t.trim();
   return (BOOKING_TIME_SLOTS as readonly string[]).includes(x);

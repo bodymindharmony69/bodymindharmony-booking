@@ -2,9 +2,6 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-const SESSION_OK = "bodymindharmony_admin_ok";
-const SESSION_SECRET = "bodymindharmony_admin_secret";
-
 type CalendarStatus = {
   hasClientId: boolean;
   hasClientSecret: boolean;
@@ -32,7 +29,6 @@ type Booking = {
 
 export default function AdminBookingsPage() {
   const [unlocked, setUnlocked] = useState(false);
-  const [adminSecret, setAdminSecret] = useState("");
   const [passwordInput, setPasswordInput] = useState("");
   const [loginError, setLoginError] = useState("");
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -59,27 +55,20 @@ export default function AdminBookingsPage() {
   }
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const ok = sessionStorage.getItem(SESSION_OK) === "1";
-    const secret = sessionStorage.getItem(SESSION_SECRET) ?? "";
-    if (ok && secret) {
-      setUnlocked(true);
-      setAdminSecret(secret);
-    }
+    fetch("/api/admin-auth")
+      .then((res) => res.json())
+      .then((data) => setUnlocked(data.ok === true))
+      .catch(() => setUnlocked(false));
   }, []);
 
   const loadBookings = useCallback(() => {
-    if (!adminSecret) return;
     setBookingsLoadError("");
     setListLoading(true);
-    fetch("/api/admin/bookings/list", { headers: { "x-admin-secret": adminSecret } })
+    fetch("/api/admin/bookings/list")
       .then(async (res) => {
         if (!res.ok) {
           if (res.status === 401) {
-            sessionStorage.removeItem(SESSION_OK);
-            sessionStorage.removeItem(SESSION_SECRET);
             setUnlocked(false);
-            setAdminSecret("");
           }
           const j = await res.json().catch(() => ({}));
           setBookingsLoadError(
@@ -98,12 +87,11 @@ export default function AdminBookingsPage() {
         setBookings([]);
       })
       .finally(() => setListLoading(false));
-  }, [adminSecret]);
+  }, []);
 
   const loadGoogleStatus = useCallback(() => {
-    if (!adminSecret) return;
     setGoogleStatusError("");
-    fetch("/api/admin/google/calendar-status", { headers: { "x-admin-secret": adminSecret } })
+    fetch("/api/admin/google/calendar-status")
       .then(async (res) => {
         if (!res.ok) {
           const j = await res.json().catch(() => ({}));
@@ -122,14 +110,14 @@ export default function AdminBookingsPage() {
         setGoogleStatus(null);
         setGoogleStatusError("Could not load Google Calendar status.");
       });
-  }, [adminSecret]);
+  }, []);
 
   useEffect(() => {
-    if (unlocked && adminSecret) {
+    if (unlocked) {
       loadBookings();
       loadGoogleStatus();
     }
-  }, [unlocked, adminSecret, loadBookings, loadGoogleStatus]);
+  }, [unlocked, loadBookings, loadGoogleStatus]);
 
   async function handleLogin(event: React.FormEvent) {
     event.preventDefault();
@@ -143,9 +131,6 @@ export default function AdminBookingsPage() {
       setLoginError("Wrong password or server error.");
       return;
     }
-    sessionStorage.setItem(SESSION_OK, "1");
-    sessionStorage.setItem(SESSION_SECRET, passwordInput);
-    setAdminSecret(passwordInput);
     setPasswordInput("");
     setUnlocked(true);
   }
@@ -160,7 +145,7 @@ export default function AdminBookingsPage() {
     setBookingBusy(id);
     const res = await fetch("/api/admin/bookings/accept", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "x-admin-secret": adminSecret },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id, final_price: pounds }),
     });
     setBookingBusy(null);
@@ -181,7 +166,7 @@ export default function AdminBookingsPage() {
     setBookingBusy(id);
     const res = await fetch("/api/admin/bookings/decline", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "x-admin-secret": adminSecret },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id }),
     });
     setBookingBusy(null);

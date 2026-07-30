@@ -4,12 +4,11 @@ import {
   getPendingBookingForAcceptPg,
   markBookingAcceptedAndBlockDatePg,
 } from "../../../../../lib/bookingAdminPg";
-import { createCalendarEvent } from "../../../../../lib/googleCalendar";
 import {
   sendAdminBookingAcceptedNotification,
   sendBookingAcceptedEmail,
 } from "../../../../../lib/email";
-import { createBookingPaymentLink } from "../../../../../lib/stripe";
+import { createBookingPaymentLink, createStripeClient } from "../../../../../lib/stripe";
 
 export const runtime = "nodejs";
 
@@ -54,27 +53,12 @@ export async function POST(request: NextRequest) {
   const { row } = loaded;
   const bookingWithPrice = { ...row, final_price: finalPrice };
 
+  let checkout: { id: string; url: string; expiresAt: number };
   try {
-    await createCalendarEvent({
-      client_name: bookingWithPrice.client_name,
-      client_phone: bookingWithPrice.client_phone,
-      client_email: bookingWithPrice.client_email,
-      address: bookingWithPrice.address,
-      message: bookingWithPrice.message,
-      booking_date: bookingWithPrice.booking_date,
-      booking_time: bookingWithPrice.booking_time,
-      final_price: bookingWithPrice.final_price,
-    });
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : "Google Calendar failed";
-    return NextResponse.json({ error: msg }, { status: 500 });
-  }
-
-  let paymentUrl: string;
-  try {
-    paymentUrl = await createBookingPaymentLink({
+    checkout = await createBookingPaymentLink({
       id: row.id,
       client_name: row.client_name,
+      client_email: row.client_email,
       booking_date: row.booking_date,
       booking_time: row.booking_time,
       final_price: finalPrice,
@@ -86,10 +70,17 @@ export async function POST(request: NextRequest) {
 
   const done = await markBookingAcceptedAndBlockDatePg(id, row.booking_date, {
     finalPrice,
-    paymentUrl,
-    paymentStatus: "pending",
+    paymentUrl: checkout.url,
+    paymentStatus: "unpaid",
+    stripeCheckoutSessionId: checkout.id,
+    reservationExpiresAt: new Date(checkout.expiresAt * 1000).toISOString(),
   });
   if ("error" in done) {
+    try {
+      await createStripeClient().checkout.sessions.expire(checkout.id);
+    } catch (error) {
+      console.error("expire unused Stripe checkout:", error);
+    }
     return NextResponse.json({ error: done.error }, { status: done.code });
   }
 
@@ -103,7 +94,7 @@ export async function POST(request: NextRequest) {
     message: row.message,
     status: "accepted",
     final_price: finalPrice,
-    payment_url: paymentUrl,
+    payment_url: checkout.url,
   };
 
   console.log("ACCEPT booking client_email:", row.client_email);
@@ -119,5 +110,5 @@ export async function POST(request: NextRequest) {
     console.error("sendAdminBookingAcceptedNotification (accept):", e);
   }
 
-  return NextResponse.json({ success: true, payment_url: paymentUrl });
+  return NextResponse.json({ success: true, payment_url: checkout.url });
 }

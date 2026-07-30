@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { BOOKING_TIME_SLOTS, isValidCalendarDateYMD } from "../../lib/bookingRules";
+import { BOOKING_TIME_SLOTS, isBookableDateYMD, todayInLondonYMD } from "../../lib/bookingRules";
 
 export default function BookPage() {
   const [loading, setLoading] = useState(false);
@@ -21,7 +21,7 @@ export default function BookPage() {
     const address = String(fd.get("address") ?? "").trim();
     const message = String(fd.get("message") ?? "").trim();
 
-    if (!isValidCalendarDateYMD(booking_date)) {
+    if (!isBookableDateYMD(booking_date)) {
       setLoading(false);
       setError("Please choose a valid date (YYYY-MM-DD).");
       return;
@@ -83,16 +83,16 @@ export default function BookPage() {
             <input name="name" required autoComplete="name" />
           </label>
             <label>
-            Email
-            <input name="client_email" type="email" autoComplete="email" />
+            Email *
+            <input name="client_email" type="email" autoComplete="email" required />
           </label>
           <label>
-            Phone
-            <input name="phone" type="tel" autoComplete="tel" />
+            Phone *
+            <input name="phone" type="tel" autoComplete="tel" required minLength={7} />
           </label>
           <label>
             Date * (YYYY-MM-DD)
-            <input name="date" type="date" required />
+            <input name="date" type="date" required min={todayInLondonYMD()} />
           </label>
           <label>
             Time *
@@ -108,9 +108,13 @@ export default function BookPage() {
             </select>
           </label>
           <label>
-            Address / postcode
-            <input name="address" autoComplete="street-address" />
+            Address / postcode *
+            <input name="address" autoComplete="street-address" required minLength={5} />
           </label>
+          <p className="form-consent">
+            By sending this request, you agree to our <a href="/privacy">privacy notice</a> and{" "}
+            <a href="/terms">booking terms</a>.
+          </p>
           <label>
             Message
             <textarea name="message" rows={4} />

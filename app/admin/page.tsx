@@ -2,9 +2,6 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-const SESSION_OK = "bodymindharmony_admin_ok";
-const SESSION_SECRET = "bodymindharmony_admin_secret";
-
 function toYMD(d: Date) {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
@@ -14,7 +11,6 @@ function toYMD(d: Date) {
 
 export default function AdminPage() {
   const [unlocked, setUnlocked] = useState(false);
-  const [adminSecret, setAdminSecret] = useState("");
   const [passwordInput, setPasswordInput] = useState("");
   const [loginError, setLoginError] = useState("");
   const [blockedDates, setBlockedDates] = useState<string[]>([]);
@@ -22,13 +18,10 @@ export default function AdminPage() {
   const [blockedLoadError, setBlockedLoadError] = useState("");
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const ok = sessionStorage.getItem(SESSION_OK) === "1";
-    const secret = sessionStorage.getItem(SESSION_SECRET) ?? "";
-    if (ok && secret) {
-      setUnlocked(true);
-      setAdminSecret(secret);
-    }
+    fetch("/api/admin-auth")
+      .then((res) => res.json())
+      .then((data) => setUnlocked(data.ok === true))
+      .catch(() => setUnlocked(false));
   }, []);
 
   const refresh = useCallback(() => {
@@ -70,9 +63,6 @@ export default function AdminPage() {
       setLoginError("Wrong password or server error.");
       return;
     }
-    sessionStorage.setItem(SESSION_OK, "1");
-    sessionStorage.setItem(SESSION_SECRET, passwordInput);
-    setAdminSecret(passwordInput);
     setPasswordInput("");
     setUnlocked(true);
   }
@@ -89,20 +79,14 @@ export default function AdminPage() {
     setPending(dateStr);
     const res = await fetch("/api/block-date", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-admin-secret": adminSecret,
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ date: dateStr }),
     });
     setPending(null);
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
       if (res.status === 401) {
-        sessionStorage.removeItem(SESSION_OK);
-        sessionStorage.removeItem(SESSION_SECRET);
         setUnlocked(false);
-        setAdminSecret("");
         alert("Session expired or unauthorized.");
         return;
       }

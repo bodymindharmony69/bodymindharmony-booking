@@ -9,5 +9,8 @@ export async function GET() {
   if (error) {
     return NextResponse.json({ error }, { status: 500 });
   }
-  return NextResponse.json({ blockedDates: dates });
+  return NextResponse.json(
+    { blockedDates: dates },
+    { headers: { "Cache-Control": "public, max-age=0, s-maxage=30" } },
+  );
 }

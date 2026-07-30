@@ -3,6 +3,7 @@ import { requireEnv } from "./requireEnv";
 import { getGoogleRedirectUri, requireGoogleRedirectUri } from "./googleRedirectUri";
 
 export type BookingForCalendar = {
+  id?: string;
   client_name: string;
   client_phone: string | null;
   client_email: string | null;
@@ -85,7 +86,7 @@ function buildDescription(b: BookingForCalendar): string {
     .join("\n");
 }
 
-export async function createCalendarEvent(booking: BookingForCalendar): Promise<void> {
+export async function createCalendarEvent(booking: BookingForCalendar): Promise<string> {
   const missing = listMissingGoogleCalendarEnv();
   if (missing.length > 0) {
     throw new Error(`Missing Google Calendar environment variables: ${missing.join(", ")}`);
@@ -104,9 +105,11 @@ export async function createCalendarEvent(booking: BookingForCalendar): Promise<
   const end = endDateTime(booking.booking_date, booking.booking_time);
 
   try {
+    const eventId = booking.id ? `bmh${booking.id.replace(/-/g, "").toLowerCase()}` : undefined;
     await calendar.events.insert({
       calendarId: "primary",
       requestBody: {
+        id: eventId,
         summary: `BodyMindHarmony Massage - ${booking.client_name}`,
         description: buildDescription(booking),
         location: booking.address ?? "",
@@ -114,7 +117,13 @@ export async function createCalendarEvent(booking: BookingForCalendar): Promise<
         end: { dateTime: end, timeZone: "Europe/London" },
       },
     });
+    return eventId ?? "";
   } catch (e) {
+    const status =
+      e && typeof e === "object" && "code" in e ? Number((e as { code: unknown }).code) : 0;
+    if (status === 409 && booking.id) {
+      return `bmh${booking.id.replace(/-/g, "").toLowerCase()}`;
+    }
     const msg =
       e && typeof e === "object" && "message" in e
         ? String((e as { message: unknown }).message)

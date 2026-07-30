@@ -194,13 +194,14 @@ export async function sendBookingAcceptedEmail(booking: BookingAcceptedEmailFiel
 
     const text =
       `Hi ${booking.client_name},\n\n` +
-      `Your BodyMindHarmony booking has been confirmed.\n\n` +
+      `Your BodyMindHarmony request has been approved and the date is reserved while you pay.\n\n` +
       `Date:\n${booking.booking_date}\n\n` +
       `Time:\n${booking.booking_time}\n\n` +
       `Address:\n${booking.address ?? ""}\n\n` +
       `Final price:\n${price}\n\n` +
       `Payment link:\n${pay || "—"}\n\n` +
       `Please complete payment here:\n${pay || "(link unavailable)"}\n\n` +
+      `The reservation and payment link expire after approximately 30 minutes.\n\n` +
       `Love,\n` +
       `BodyMindHarmony`;
 
@@ -208,7 +209,7 @@ export async function sendBookingAcceptedEmail(booking: BookingAcceptedEmailFiel
     try {
       await sendResendCustomerCopyToClientThenAdmin({
         from,
-        subject: "BodyMindHarmony booking confirmed",
+        subject: "BodyMindHarmony payment link",
         text,
         clientEmail: booking.client_email,
       });
@@ -247,7 +248,7 @@ export async function sendAdminBookingAcceptedNotification(
     const price = formatPrice(booking.final_price);
 
     const text =
-      `BodyMindHarmony booking accepted\n\n` +
+      `BodyMindHarmony booking awaiting payment\n\n` +
       `Name: ${booking.client_name}\n` +
       `Email: ${booking.client_email ?? ""}\n` +
       `Phone: ${booking.client_phone ?? ""}\n` +
@@ -256,7 +257,7 @@ export async function sendAdminBookingAcceptedNotification(
       `Address: ${booking.address ?? ""}\n` +
       `Final price: ${price}\n` +
       `Payment URL: ${pay || "—"}\n` +
-      `Google Calendar created: yes\n`;
+      `Google Calendar created: after successful payment\n`;
 
     const resend = resendClient();
     if (!resend) return { skipped: true, reason: "Missing email env" };
@@ -264,7 +265,7 @@ export async function sendAdminBookingAcceptedNotification(
     await resend.emails.send({
       from,
       to: adminTo,
-      subject: "BodyMindHarmony booking accepted",
+      subject: "BodyMindHarmony booking awaiting payment",
       text,
     });
     return { ok: true };
@@ -272,5 +273,36 @@ export async function sendAdminBookingAcceptedNotification(
     const message = e instanceof Error ? e.message : String(e);
     console.error("[email] sendAdminBookingAcceptedNotification:", message);
     return { error: message };
+  }
+}
+
+export async function sendBookingPaidEmail(
+  booking: BookingRequestEmailFields & { id: string; final_price: number | null },
+): Promise<EmailResult> {
+  try {
+    const resend = resendClient();
+    const from = fromAddress();
+    const client = booking.client_email?.trim();
+    if (!resend || !from || !client) return { skipped: true, reason: "Missing email env or recipient" };
+    const result = await resend.emails.send(
+      {
+        from,
+        to: client,
+        subject: "BodyMindHarmony booking confirmed",
+        text:
+          `Hi ${booking.client_name},\n\n` +
+          `Payment has been received and your booking is confirmed.\n\n` +
+          `Date: ${booking.booking_date}\n` +
+          `Time: ${booking.booking_time}\n` +
+          `Address: ${booking.address ?? ""}\n` +
+          `Paid: ${formatPrice(booking.final_price)}\n\n` +
+          `Love,\nBodyMindHarmony`,
+      },
+      { idempotencyKey: `booking-paid-${booking.id}` },
+    );
+    if (result.error) return { error: result.error.message };
+    return { ok: true };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : String(error) };
   }
 }

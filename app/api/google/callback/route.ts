@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { google } from "googleapis";
 import { requireEnv } from "../../../../lib/requireEnv";
 import { requireGoogleRedirectUri } from "../../../../lib/googleRedirectUri";
+import { verifyGoogleOAuthState } from "../../../../lib/googleOAuthState";
 
 export const runtime = "nodejs";
 
@@ -19,8 +20,9 @@ export async function GET(request: NextRequest) {
   }
 
   const code = request.nextUrl.searchParams.get("code");
-  if (!code) {
-    return new NextResponse("Missing code query parameter.", { status: 400 });
+  const state = request.nextUrl.searchParams.get("state");
+  if (!code || !verifyGoogleOAuthState(state)) {
+    return new NextResponse("Invalid or expired Google authorization request.", { status: 400 });
   }
 
   const oauth2Client = new google.auth.OAuth2(clientId, clientSecret, redirectUri);
@@ -48,7 +50,11 @@ export async function GET(request: NextRequest) {
 
   return new NextResponse(html, {
     status: 200,
-    headers: { "Content-Type": "text/html; charset=utf-8" },
+    headers: {
+      "Content-Type": "text/html; charset=utf-8",
+      "Cache-Control": "no-store",
+      "X-Robots-Tag": "noindex, nofollow",
+    },
   });
 }
 
