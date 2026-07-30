@@ -28,7 +28,12 @@ function assert(value, message) {
 await check("homepage", async () => {
   const response = await fetch(`${base}/`);
   const html = await response.text();
-  assert(response.ok && html.includes("Book Your Experience"), `status ${response.status}`);
+  assert(
+    response.ok &&
+      html.includes("<title>BodyMindHarmony Massage Booking</title>") &&
+      html.includes("Loading booking calendar"),
+    `status ${response.status}`,
+  );
 });
 
 await check("availability API", async () => {
