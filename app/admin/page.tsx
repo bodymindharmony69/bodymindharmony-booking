@@ -2,9 +2,6 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-const SESSION_OK = "bodymindharmony_admin_ok";
-const SESSION_SECRET = "bodymindharmony_admin_secret";
-
 function toYMD(d: Date) {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
@@ -14,26 +11,40 @@ function toYMD(d: Date) {
 
 export default function AdminPage() {
   const [unlocked, setUnlocked] = useState(false);
-  const [adminSecret, setAdminSecret] = useState("");
   const [passwordInput, setPasswordInput] = useState("");
   const [loginError, setLoginError] = useState("");
   const [blockedDates, setBlockedDates] = useState<string[]>([]);
   const [pending, setPending] = useState<string | null>(null);
+  const [blockedLoadError, setBlockedLoadError] = useState("");
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const ok = sessionStorage.getItem(SESSION_OK) === "1";
-    const secret = sessionStorage.getItem(SESSION_SECRET) ?? "";
-    if (ok && secret) {
-      setUnlocked(true);
-      setAdminSecret(secret);
-    }
+    fetch("/api/admin-auth")
+      .then((res) => res.json())
+      .then((data) => setUnlocked(data.ok === true))
+      .catch(() => setUnlocked(false));
   }, []);
 
   const refresh = useCallback(() => {
+    setBlockedLoadError("");
     fetch("/api/get-blocked")
-      .then((res) => res.json())
-      .then((data) => setBlockedDates(data.blockedDates ?? []));
+      .then(async (res) => {
+        if (!res.ok) {
+          const j = await res.json().catch(() => ({}));
+          setBlockedLoadError(
+            typeof j.error === "string" ? j.error : "Could not load blocked dates.",
+          );
+          setBlockedDates([]);
+          return null;
+        }
+        return res.json();
+      })
+      .then((data) => {
+        if (data) setBlockedDates(Array.isArray(data.blockedDates) ? data.blockedDates : []);
+      })
+      .catch(() => {
+        setBlockedLoadError("Could not load blocked dates.");
+        setBlockedDates([]);
+      });
   }, []);
 
   useEffect(() => {
@@ -52,9 +63,6 @@ export default function AdminPage() {
       setLoginError("Wrong password or server error.");
       return;
     }
-    sessionStorage.setItem(SESSION_OK, "1");
-    sessionStorage.setItem(SESSION_SECRET, passwordInput);
-    setAdminSecret(passwordInput);
     setPasswordInput("");
     setUnlocked(true);
   }
@@ -71,20 +79,14 @@ export default function AdminPage() {
     setPending(dateStr);
     const res = await fetch("/api/block-date", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-admin-secret": adminSecret,
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ date: dateStr }),
     });
     setPending(null);
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
       if (res.status === 401) {
-        sessionStorage.removeItem(SESSION_OK);
-        sessionStorage.removeItem(SESSION_SECRET);
         setUnlocked(false);
-        setAdminSecret("");
         alert("Session expired or unauthorized.");
         return;
       }
@@ -129,7 +131,13 @@ export default function AdminPage() {
     <main className="admin-main">
       <div className="admin-card">
         <h1>Block dates</h1>
-        <p className="note">Next 30 days · green = available · red = blocked · click to toggle</p>
+        <p className="note">
+          Next 30 days · green = available · red = blocked · click to toggle.{" "}
+          <a href="/admin/bookings" style={{ color: "#8af" }}>
+            Booking requests &amp; Google Calendar →
+          </a>
+        </p>
+        {blockedLoadError ? <p className="admin-login-error">{blockedLoadError}</p> : null}
         <div className="admin-grid">
           {days.map((d) => {
             const dateStr = toYMD(d);
@@ -151,6 +159,12 @@ export default function AdminPage() {
             );
           })}
         </div>
+
+        <p className="note" style={{ marginTop: 24 }}>
+          <a href="/" style={{ color: "#aaa" }}>
+            ← Back to booking
+          </a>
+        </p>
       </div>
     </main>
   );

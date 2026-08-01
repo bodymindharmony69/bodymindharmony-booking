@@ -1,0 +1,67 @@
+import { NextRequest, NextResponse } from "next/server";
+import { google } from "googleapis";
+import { requireEnv } from "../../../../lib/requireEnv";
+import { requireGoogleRedirectUri } from "../../../../lib/googleRedirectUri";
+import { verifyGoogleOAuthState } from "../../../../lib/googleOAuthState";
+
+export const runtime = "nodejs";
+
+export async function GET(request: NextRequest) {
+  let clientId: string;
+  let clientSecret: string;
+  let redirectUri: string;
+  try {
+    clientId = requireEnv("GOOGLE_CLIENT_ID");
+    clientSecret = requireEnv("GOOGLE_CLIENT_SECRET");
+    redirectUri = requireGoogleRedirectUri();
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Missing Google OAuth env vars.";
+    return new NextResponse(msg, { status: 500 });
+  }
+
+  const code = request.nextUrl.searchParams.get("code");
+  const state = request.nextUrl.searchParams.get("state");
+  if (!code || !verifyGoogleOAuthState(state)) {
+    return new NextResponse("Invalid or expired Google authorization request.", { status: 400 });
+  }
+
+  const oauth2Client = new google.auth.OAuth2(clientId, clientSecret, redirectUri);
+  const { tokens } = await oauth2Client.getToken(code);
+  const refresh = tokens.refresh_token ?? "(no refresh token returned — revoke app access in Google Account and try again with prompt=consent)";
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Google refresh token</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 640px; margin: 24px auto; padding: 0 16px; line-height: 1.5; }
+    .warn { background: #fff3cd; border: 1px solid #ffc107; padding: 12px; border-radius: 8px; margin: 16px 0; }
+    pre { background: #f5f5f5; padding: 12px; overflow-x: auto; word-break: break-all; border-radius: 8px; }
+  </style>
+</head>
+<body>
+  <h1>Refresh token</h1>
+  <p class="warn"><strong>Copy this into Vercel as GOOGLE_REFRESH_TOKEN. Do not share it.</strong></p>
+  <pre>${escapeHtml(refresh)}</pre>
+</body>
+</html>`;
+
+  return new NextResponse(html, {
+    status: 200,
+    headers: {
+      "Content-Type": "text/html; charset=utf-8",
+      "Cache-Control": "no-store",
+      "X-Robots-Tag": "noindex, nofollow",
+    },
+  });
+}
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}

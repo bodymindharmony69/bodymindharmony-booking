@@ -1,0 +1,133 @@
+import { NextRequest, NextResponse } from "next/server";
+import { listBlockedDatesYmd } from "../../../lib/blockedDatesPg";
+import { insertBookingRequestPg } from "../../../lib/insertBookingRequestPg";
+import { sendAdminBookingNotification, sendBookingReceivedEmail } from "../../../lib/email";
+import {
+  isAllowedBookingTime,
+  isBookableDateYMD,
+} from "../../../lib/bookingRules";
+import { allowBookingRequest } from "../../../lib/rateLimit";
+
+export const runtime = "nodejs";
+
+function clip(s: string, max: number): string {
+  return s.length <= max ? s : s.slice(0, max);
+}
+
+const MAX_NAME = 200;
+const MAX_EMAIL = 254;
+const MAX_PHONE = 50;
+const MAX_ADDRESS = 500;
+const MAX_MESSAGE = 8000;
+
+export async function POST(request: NextRequest) {
+  let body: Record<string, unknown>;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+
+  const client_name = clip(
+    typeof body.client_name === "string" ? body.client_name.trim() : "",
+    MAX_NAME,
+  );
+  if (!client_name) {
+    return NextResponse.json({ error: "client_name is required" }, { status: 400 });
+  }
+
+  const booking_date = typeof body.booking_date === "string" ? body.booking_date.trim() : "";
+  const booking_time = typeof body.booking_time === "string" ? body.booking_time.trim() : "";
+  if (!booking_date || !booking_time) {
+    return NextResponse.json({ error: "booking_date and booking_time are required" }, { status: 400 });
+  }
+  if (!isBookableDateYMD(booking_date)) {
+    return NextResponse.json({ error: "Choose a date from today up to one year ahead." }, { status: 400 });
+  }
+  if (!isAllowedBookingTime(booking_time)) {
+    return NextResponse.json({ error: "booking_time is not an available slot" }, { status: 400 });
+  }
+
+  const { dates: blocked, error: blockedErr } = await listBlockedDatesYmd();
+  if (blockedErr) {
+    return NextResponse.json({ error: blockedErr }, { status: 500 });
+  }
+  if (blocked.includes(booking_date)) {
+    return NextResponse.json({ error: "This date is not available for booking." }, { status: 409 });
+  }
+
+  /** Prefer `client_email`; accept legacy `email` if the payload uses the wrong key. */
+  const rawEmail =
+    (typeof body.client_email === "string" ? body.client_email : "") ||
+    (typeof body.email === "string" ? body.email : "");
+  const client_email = clip(rawEmail.trim(), MAX_EMAIL);
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(client_email)) {
+    return NextResponse.json({ error: "A valid email address is required." }, { status: 400 });
+  }
+
+  const client_phone =
+    typeof body.client_phone === "string"
+      ? clip(body.client_phone.trim(), MAX_PHONE)
+      : "";
+  const address =
+    typeof body.address === "string" ? clip(body.address.trim(), MAX_ADDRESS) : "";
+  if (client_phone.length < 7 || address.length < 5) {
+    return NextResponse.json({ error: "Phone and service address are required." }, { status: 400 });
+  }
+  const message =
+    typeof body.message === "string" ? clip(body.message.trim(), MAX_MESSAGE) || null : null;
+
+  try {
+    if (!(await allowBookingRequest(request, client_email))) {
+      return NextResponse.json(
+        { error: "Too many requests. Please wait 15 minutes and try again." },
+        { status: 429 },
+      );
+    }
+  } catch (error) {
+    console.error("booking rate limit:", error);
+    return NextResponse.json(
+      { error: "Booking is temporarily unavailable. Please try again shortly." },
+      { status: 503 },
+    );
+  }
+
+  const { row: inserted, error: insertErr } = await insertBookingRequestPg({
+    client_name,
+    client_email,
+    client_phone,
+    booking_date,
+    booking_time,
+    address,
+    message,
+  });
+
+  if (insertErr) {
+    return NextResponse.json({ error: insertErr }, { status: 500 });
+  }
+
+  if (inserted) {
+    const payload = {
+      client_name: inserted.client_name,
+      client_email: inserted.client_email,
+      client_phone: inserted.client_phone,
+      booking_date: inserted.booking_date,
+      booking_time: inserted.booking_time,
+      address: inserted.address,
+      message: inserted.message,
+      status: inserted.status,
+    };
+    try {
+      await sendBookingReceivedEmail(payload);
+    } catch (e) {
+      console.error("sendBookingReceivedEmail (booking-request):", e);
+    }
+    try {
+      await sendAdminBookingNotification(payload);
+    } catch (e) {
+      console.error("sendAdminBookingNotification (booking-request):", e);
+    }
+  }
+
+  return NextResponse.json({ success: true });
+}

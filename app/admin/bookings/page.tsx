@@ -1,0 +1,438 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+
+type CalendarStatus = {
+  hasClientId: boolean;
+  hasClientSecret: boolean;
+  hasRedirectUriEnv: boolean;
+  hasRedirectUriEffective: boolean;
+  hasRefreshToken: boolean;
+  redirectUri: string | null;
+};
+
+type Booking = {
+  id: string;
+  client_name: string;
+  booking_date: string;
+  booking_time: string;
+  status: string;
+  client_email: string | null;
+  client_phone: string | null;
+  address: string | null;
+  message: string | null;
+  created_at: string;
+  final_price: number | null;
+  payment_url: string | null;
+  payment_status: string | null;
+};
+
+export default function AdminBookingsPage() {
+  const [unlocked, setUnlocked] = useState(false);
+  const [passwordInput, setPasswordInput] = useState("");
+  const [loginError, setLoginError] = useState("");
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [bookingsLoadError, setBookingsLoadError] = useState("");
+  const [bookingBusy, setBookingBusy] = useState<string | null>(null);
+  const [googleStatus, setGoogleStatus] = useState<CalendarStatus | null>(null);
+  const [googleStatusError, setGoogleStatusError] = useState("");
+  const [googleAuthBusy, setGoogleAuthBusy] = useState(false);
+  const [listLoading, setListLoading] = useState(false);
+  const [actionError, setActionError] = useState("");
+  const [finalPriceById, setFinalPriceById] = useState<Record<string, string>>({});
+  const [paymentUrlFlashById, setPaymentUrlFlashById] = useState<Record<string, string>>({});
+
+  function parsedFinalPricePounds(id: string): number | null {
+    const raw = (finalPriceById[id] ?? "").trim().replace(/£/g, "");
+    if (!raw) return null;
+    const n = parseFloat(raw);
+    if (!Number.isFinite(n) || n <= 0) return null;
+    return n;
+  }
+
+  function hasValidFinalPrice(id: string): boolean {
+    return parsedFinalPricePounds(id) != null;
+  }
+
+  useEffect(() => {
+    fetch("/api/admin-auth")
+      .then((res) => res.json())
+      .then((data) => setUnlocked(data.ok === true))
+      .catch(() => setUnlocked(false));
+  }, []);
+
+  const loadBookings = useCallback(() => {
+    setBookingsLoadError("");
+    setListLoading(true);
+    fetch("/api/admin/bookings/list")
+      .then(async (res) => {
+        if (!res.ok) {
+          if (res.status === 401) {
+            setUnlocked(false);
+          }
+          const j = await res.json().catch(() => ({}));
+          setBookingsLoadError(
+            typeof j.error === "string" ? j.error : `Could not load bookings (${res.status}).`,
+          );
+          setBookings([]);
+          return null;
+        }
+        return res.json();
+      })
+      .then((data) => {
+        if (data && Array.isArray(data.bookings)) setBookings(data.bookings);
+      })
+      .catch(() => {
+        setBookingsLoadError("Could not load bookings.");
+        setBookings([]);
+      })
+      .finally(() => setListLoading(false));
+  }, []);
+
+  const loadGoogleStatus = useCallback(() => {
+    setGoogleStatusError("");
+    fetch("/api/admin/google/calendar-status")
+      .then(async (res) => {
+        if (!res.ok) {
+          const j = await res.json().catch(() => ({}));
+          setGoogleStatus(null);
+          setGoogleStatusError(
+            typeof j.error === "string" ? j.error : `Calendar status failed (${res.status}).`,
+          );
+          return;
+        }
+        return res.json();
+      })
+      .then((data) => {
+        if (data) setGoogleStatus(data as CalendarStatus);
+      })
+      .catch(() => {
+        setGoogleStatus(null);
+        setGoogleStatusError("Could not load Google Calendar status.");
+      });
+  }, []);
+
+  useEffect(() => {
+    if (unlocked) {
+      loadBookings();
+      loadGoogleStatus();
+    }
+  }, [unlocked, loadBookings, loadGoogleStatus]);
+
+  async function handleLogin(event: React.FormEvent) {
+    event.preventDefault();
+    setLoginError("");
+    const res = await fetch("/api/admin-auth", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password: passwordInput }),
+    });
+    if (!res.ok) {
+      setLoginError("Wrong password or server error.");
+      return;
+    }
+    setPasswordInput("");
+    setUnlocked(true);
+  }
+
+  async function acceptBooking(id: string) {
+    setActionError("");
+    const pounds = parsedFinalPricePounds(id);
+    if (pounds == null) {
+      setActionError("Enter a final price greater than zero before accepting.");
+      return;
+    }
+    setBookingBusy(id);
+    const res = await fetch("/api/admin/bookings/accept", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, final_price: pounds }),
+    });
+    setBookingBusy(null);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setActionError(typeof data.error === "string" ? data.error : "Accept failed");
+      return;
+    }
+    if (typeof data.payment_url === "string" && data.payment_url) {
+      setPaymentUrlFlashById((prev) => ({ ...prev, [id]: data.payment_url as string }));
+    }
+    loadBookings();
+    loadGoogleStatus();
+  }
+
+  async function declineBooking(id: string) {
+    setActionError("");
+    setBookingBusy(id);
+    const res = await fetch("/api/admin/bookings/decline", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id }),
+    });
+    setBookingBusy(null);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setActionError(typeof data.error === "string" ? data.error : "Decline failed");
+      return;
+    }
+    loadBookings();
+  }
+
+  if (!unlocked) {
+    return (
+      <main className="admin-main">
+        <div className="admin-card">
+          <h1>Bookings</h1>
+          <p className="note">Enter the admin password to view requests and accept or decline.</p>
+          <form onSubmit={handleLogin}>
+            <label htmlFor="admin-password">Password</label>
+            <input
+              id="admin-password"
+              type="password"
+              autoComplete="current-password"
+              value={passwordInput}
+              onChange={(e) => setPasswordInput(e.target.value)}
+              required
+            />
+            {loginError ? <p className="admin-login-error">{loginError}</p> : null}
+            <button type="submit" className="admin-login-btn">
+              Continue
+            </button>
+          </form>
+        </div>
+      </main>
+    );
+  }
+
+  return (
+    <main className="admin-main">
+      <div className="admin-card">
+        <h1>Bookings</h1>
+        <p className="note">
+          Accept creates a Google Calendar event, a Stripe payment link, marks the request accepted, blocks the date,
+          and emails the client with the payment link. Decline only updates status.
+        </p>
+
+        <h2 className="admin-sub">Google Calendar</h2>
+        <div className="admin-google-panel">
+          {googleStatusError ? <p className="admin-login-error">{googleStatusError}</p> : null}
+          {googleStatus ? (
+            <>
+              {googleStatus.hasClientId &&
+              googleStatus.hasClientSecret &&
+              googleStatus.hasRedirectUriEffective &&
+              googleStatus.hasRefreshToken ? (
+                <p className="admin-google-ok">
+                  Connected. Accept uses the <strong>primary</strong> calendar (Europe/London), 2-hour events.
+                </p>
+              ) : (
+                <>
+                  <p className="note">
+                    Use this exact redirect URI in Google Cloud Console (Authorized redirect URIs). It may come from{" "}
+                    <code className="admin-google-code">GOOGLE_REDIRECT_URI</code> or be derived from your public site
+                    URL.
+                  </p>
+                  <code className="admin-google-code">
+                    {googleStatus.redirectUri ?? "(not resolved — set NEXT_PUBLIC_SITE_URL or GOOGLE_REDIRECT_URI)"}
+                  </code>
+                  <ul className="admin-google-steps">
+                    <li className={googleStatus.hasClientId ? "admin-google-step--ok" : ""}>
+                      Set <code className="admin-google-code">GOOGLE_CLIENT_ID</code> in Vercel (OAuth client).
+                    </li>
+                    <li
+                      className={
+                        googleStatus.hasClientId && googleStatus.hasClientSecret ? "admin-google-step--ok" : ""
+                      }
+                    >
+                      Set <code className="admin-google-code">GOOGLE_CLIENT_SECRET</code>.
+                    </li>
+                    <li
+                      className={
+                        googleStatus.hasRedirectUriEffective ? "admin-google-step--ok" : ""
+                      }
+                    >
+                      Set <code className="admin-google-code">GOOGLE_REDIRECT_URI</code> (or{" "}
+                      <code className="admin-google-code">NEXT_PUBLIC_SITE_URL</code> so redirect is derived) to match
+                      the box above exactly.
+                    </li>
+                    <li className={googleStatus.hasRefreshToken ? "admin-google-step--ok" : ""}>
+                      Open Google sign-in, then add <code className="admin-google-code">GOOGLE_REFRESH_TOKEN</code> from
+                      the callback page.
+                    </li>
+                  </ul>
+                  <button
+                    type="button"
+                    className="admin-google-oauth-btn"
+                    disabled={
+                      googleAuthBusy ||
+                      !googleStatus.hasClientId ||
+                      !googleStatus.hasClientSecret ||
+                      !googleStatus.hasRedirectUriEffective
+                    }
+                    onClick={async () => {
+                      setGoogleAuthBusy(true);
+                      try {
+                        const res = await fetch("/api/google/auth-url");
+                        const j = await res.json().catch(() => ({}));
+                        if (!res.ok || typeof j.url !== "string") {
+                          alert(
+                            typeof j.error === "string"
+                              ? j.error
+                              : "Could not get Google sign-in URL. Check Vercel env and redeploy.",
+                          );
+                          return;
+                        }
+                        window.open(j.url, "_blank", "noopener,noreferrer");
+                      } finally {
+                        setGoogleAuthBusy(false);
+                      }
+                    }}
+                  >
+                    {googleAuthBusy ? "Opening…" : "Open Google sign-in"}
+                  </button>
+                  <button type="button" className="secondary admin-google-refresh" onClick={() => loadGoogleStatus()}>
+                    Refresh status
+                  </button>
+                </>
+              )}
+            </>
+          ) : !googleStatusError ? (
+            <p className="note">Loading…</p>
+          ) : null}
+        </div>
+
+        <h2 className="admin-sub">All requests</h2>
+        {bookingsLoadError ? <p className="admin-login-error">{bookingsLoadError}</p> : null}
+        {actionError ? <p className="admin-login-error">{actionError}</p> : null}
+        {listLoading ? <p className="note">Loading bookings…</p> : null}
+        <div className="admin-bookings">
+          {!listLoading && !bookingsLoadError && bookings.length === 0 ? (
+            <p className="note">No bookings yet.</p>
+          ) : bookingsLoadError || listLoading ? null : (
+            <ul className="admin-booking-list">
+              {bookings.map((b) => {
+                const created =
+                  b.created_at &&
+                  !Number.isNaN(Date.parse(b.created_at)) &&
+                  new Date(b.created_at).toLocaleString("en-GB", {
+                    dateStyle: "medium",
+                    timeStyle: "short",
+                  });
+                return (
+                  <li key={b.id} className="admin-booking-row">
+                    <div className="admin-booking-body">
+                      <div className="admin-booking-detail">
+                        <div>
+                          <span className="admin-booking-label">Name:</span> {b.client_name}
+                        </div>
+                        <div>
+                          <span className="admin-booking-label">Phone:</span> {b.client_phone || "—"}
+                        </div>
+                        <div>
+                          <span className="admin-booking-label">Email:</span> {b.client_email || "—"}
+                        </div>
+                        <div>
+                          <span className="admin-booking-label">Date:</span> {b.booking_date}
+                        </div>
+                        <div>
+                          <span className="admin-booking-label">Time:</span> {b.booking_time}
+                        </div>
+                        <div className="admin-booking-address-wrap">
+                          <span className="admin-booking-label">Address:</span>
+                          <div className="admin-booking-address">{b.address?.trim() ? b.address : "—"}</div>
+                        </div>
+                        <div>
+                          <span className="admin-booking-label">Message:</span>{" "}
+                          <span className="admin-booking-message">{b.message?.trim() ? b.message : "—"}</span>
+                        </div>
+                        <div>
+                          <span className="admin-booking-label">Status:</span> {b.status}
+                        </div>
+                        {b.final_price != null && Number.isFinite(b.final_price) ? (
+                          <div>
+                            <span className="admin-booking-label">Final price (£):</span>{" "}
+                            {b.final_price.toFixed(2)}
+                          </div>
+                        ) : null}
+                        {(b.payment_url || paymentUrlFlashById[b.id]) ? (
+                          <div className="admin-booking-payment">
+                            <span className="admin-booking-label">Payment link:</span>{" "}
+                            <a
+                              href={b.payment_url || paymentUrlFlashById[b.id]}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{ color: "#8cf", wordBreak: "break-all" }}
+                            >
+                              {b.payment_url || paymentUrlFlashById[b.id]}
+                            </a>
+                          </div>
+                        ) : null}
+                        {b.payment_status ? (
+                          <div>
+                            <span className="admin-booking-label">Payment status:</span> {b.payment_status}
+                          </div>
+                        ) : null}
+                        <div>
+                          <span className="admin-booking-label">Created:</span> {created || b.created_at || "—"}
+                        </div>
+                      </div>
+                      {b.status === "pending" ? (
+                        <div className="admin-booking-pending-actions">
+                          <label className="admin-booking-price-label" htmlFor={`final-price-${b.id}`}>
+                            Final price (£)
+                          </label>
+                          <input
+                            id={`final-price-${b.id}`}
+                            type="text"
+                            inputMode="decimal"
+                            autoComplete="off"
+                            placeholder="e.g. 65"
+                            value={finalPriceById[b.id] ?? ""}
+                            onChange={(e) =>
+                              setFinalPriceById((prev) => ({ ...prev, [b.id]: e.target.value }))
+                            }
+                          />
+                          <div className="admin-booking-actions">
+                            <button
+                              type="button"
+                              disabled={bookingBusy === b.id || !hasValidFinalPrice(b.id)}
+                              onClick={() => acceptBooking(b.id)}
+                            >
+                              Accept
+                            </button>
+                            <button
+                              type="button"
+                              className="secondary"
+                              disabled={bookingBusy === b.id}
+                              onClick={() => declineBooking(b.id)}
+                            >
+                              Decline
+                            </button>
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+
+        <p className="note" style={{ marginTop: 24 }}>
+          <a href="/admin" style={{ color: "#aaa" }}>
+            ← Block dates
+          </a>
+          {" · "}
+          <a href="/" style={{ color: "#aaa" }}>
+            Booking page
+          </a>
+          {" · "}
+          <a href="/book" style={{ color: "#aaa" }}>
+            Simple form
+          </a>
+        </p>
+      </div>
+    </main>
+  );
+}

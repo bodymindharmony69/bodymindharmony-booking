@@ -1,0 +1,8 @@
+.git
+.next
+.npm-cache
+.vercel
+.vercel-xdg-*
+node_modules
+.env*
+coverage

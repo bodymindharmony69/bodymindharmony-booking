@@ -1,19 +1,16 @@
 import { NextResponse } from "next/server";
-import { supabaseClient } from "../../../lib/supabaseClient";
+import { listBlockedDatesYmd } from "../../../lib/blockedDatesPg";
 
+export const runtime = "nodejs";
+
+/** Public read of blocked dates via Postgres (reliable vs PostgREST schema cache). */
 export async function GET() {
-  const { data, error } = await supabaseClient
-    .from("blocked_dates")
-    .select("date")
-    .order("date", { ascending: true });
-
+  const { dates, error } = await listBlockedDatesYmd();
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error }, { status: 500 });
   }
-
-  const blockedDates = (data ?? []).map((row) =>
-    typeof row.date === "string" ? row.date : String(row.date).slice(0, 10),
+  return NextResponse.json(
+    { blockedDates: dates },
+    { headers: { "Cache-Control": "public, max-age=0, s-maxage=30" } },
   );
-
-  return NextResponse.json({ blockedDates });
 }

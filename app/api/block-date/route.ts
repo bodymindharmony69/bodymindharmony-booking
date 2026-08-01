@@ -1,39 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabaseAdmin } from "../../../lib/supabaseAdmin";
+import { requireAdminSecret } from "../../../lib/adminRequest";
+import { isValidCalendarDateYMD } from "../../../lib/bookingRules";
+import { toggleBlockedDateYmd } from "../../../lib/blockedDatesPg";
+
+export const runtime = "nodejs";
 
 export async function POST(request: NextRequest) {
-  const expected = process.env.ADMIN_SECRET?.trim();
-  const headerSecret = request.headers.get("x-admin-secret");
+  const denied = requireAdminSecret(request);
+  if (denied) return denied;
 
-  if (!expected || headerSecret !== expected) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const body = await request.json().catch(() => ({}));
+  const date = typeof body?.date === "string" ? body.date.trim() : "";
 
-  const body = await request.json();
-  const date = body?.date;
-
-  if (!date || typeof date !== "string") {
+  if (!date || !isValidCalendarDateYMD(date)) {
     return NextResponse.json({ error: "date is required (YYYY-MM-DD)" }, { status: 400 });
   }
 
-  const { data: existing } = await supabaseAdmin
-    .from("blocked_dates")
-    .select("date")
-    .eq("date", date)
-    .maybeSingle();
-
-  if (existing) {
-    const { error } = await supabaseAdmin.from("blocked_dates").delete().eq("date", date);
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-    return NextResponse.json({ date, blocked: false });
-  }
-
-  const { error } = await supabaseAdmin.from("blocked_dates").insert({ date });
+  const { blocked, error } = await toggleBlockedDateYmd(date);
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error }, { status: 500 });
   }
 
-  return NextResponse.json({ date, blocked: true });
+  return NextResponse.json({ date, blocked });
 }
